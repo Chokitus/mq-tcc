@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  #Service for nameserver
+  mqtest-artemis:
+    image: vromero/activemq-artemis
+    container_name: artemis
+    ports:
+      - 8161:8161
+      - 61616:61616
+    environment:
+      ARTEMIS_USERNAME: mq-test
+      ARTEMIS_PASSWORD: mq-test
+      ARTEMIS_MIN_MEMORY: "1512M"
+      ARTEMIS_MAX_MEMORY: "2000M"

@@ -1,0 +1,20 @@
+version: '2'
+
+services:
+  mqtest-rabbitmq:
+    image: docker.io/bitnami/rabbitmq:latest
+    environment:
+      - RABBITMQ_USERNAME=mqtest
+      - RABBITMQ_PASSWORD=mqtest
+#      - RABBITMQ_LOAD_DEFINITIONS=true
+    ports:
+      - '4369:4369'
+      - '5672:5672'
+      - '25672:25672'
+      - '15672:15672'
+    volumes:
+      - 'rabbitmq_data:/bitnami'
+
+volumes:
+  rabbitmq_data:
+    driver: local
