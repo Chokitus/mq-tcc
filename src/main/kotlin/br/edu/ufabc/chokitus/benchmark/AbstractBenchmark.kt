@@ -1,8 +1,10 @@
 package br.edu.ufabc.chokitus.benchmark
 
+import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -13,16 +15,24 @@ import org.slf4j.LoggerFactory
  * @param T The benchmark result's extra data.
  * @param T The benchmark's configuration
  */
-abstract class AbstractBenchmark<C, T> {
+abstract class AbstractBenchmark<C> {
 
 	protected val log: Logger = LoggerFactory.getLogger(javaClass)
 
-	fun doBenchmark(configuration: C, clientFactory: ClientFactory): T? {
-		log.info("Preparing test!")
-		prepareTest(configuration, clientFactory)
-		log.info("Test prepared, executing...")
-		val result = runCatching { clientFactory.use { doBenchmarkImpl(configuration, it) } }
-		log.info("Test executed, aggregating data...")
+	fun doBenchmark(configuration: C, clientFactory: ClientFactory): Any? {
+		val result = clientFactory.use { factory ->
+			factory.start()
+
+			log.info("Preparing test!")
+			prepareTest(configuration, factory)
+
+			log.info("Test prepared, executing...")
+			val result = runCatching { doBenchmarkImpl(configuration, factory) }
+
+			log.info("Test executed, aggregating data...")
+			cleanUp(configuration, clientFactory)
+			result
+		}
 		return aggregateData(result).also {
 			log.info("Data aggregated!")
 		}
@@ -60,11 +70,14 @@ abstract class AbstractBenchmark<C, T> {
 	 *
 	 * @return T
 	 */
-	open fun aggregateData(result: Result<Unit>): T? {
+	open fun aggregateData(result: Result<Unit>): Any? {
 		result.getOrThrow()
 		return null
 	}
 
 }
 
-typealias ClientFactory = AbstractClientFactory<out AbstractReceiver<*, AbstractMessage, *>, *, *>
+typealias ClientReceiver = AbstractReceiver<out Any, out AbstractMessage, out ClientProperties>
+typealias ClientProducer = AbstractProducer<out Any, out AbstractMessage, out ClientProperties>
+typealias ClientFactory =
+		AbstractClientFactory<out ClientReceiver, out ClientProducer, out ClientProperties>

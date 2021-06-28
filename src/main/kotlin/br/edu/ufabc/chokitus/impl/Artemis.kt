@@ -6,6 +6,8 @@ import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
+import org.apache.activemq.artemis.api.core.QueueConfiguration
+import org.apache.activemq.artemis.api.core.RoutingType
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient
 import org.apache.activemq.artemis.api.core.client.ClientConsumer
 import org.apache.activemq.artemis.api.core.client.ClientMessage
@@ -16,8 +18,11 @@ import org.apache.activemq.artemis.api.core.client.ServerLocator
 
 object Artemis {
 
-	class ArtemisProperties(
-		internal val serverLocatorURL: String
+	data class ArtemisProperties(
+		internal val serverLocatorURL: String,
+		internal val username: String,
+		internal val password: String,
+		internal val ackBatchSize: Int
 	) : ClientProperties()
 
 	class ArtemisMessage(
@@ -47,6 +52,10 @@ object Artemis {
 
 		private val receiverByQueue: MutableMap<String, ClientConsumer> = mutableMapOf()
 
+		override fun start() {
+			clientSession.start()
+		}
+
 		override fun receiveBatch(
 			destination: String,
 			properties: ArtemisProperties?
@@ -62,7 +71,9 @@ object Artemis {
 		override fun ackAll(messages: List<ArtemisMessage>) = messages.forEach { it.ack() }
 
 		override fun getReceiver(destination: String, properties: ArtemisProperties?): ClientConsumer =
-			receiverByQueue.getOrPut(destination) { clientSession.createConsumer(destination) }
+			receiverByQueue.getOrPut(destination) {
+				clientSession.createConsumer(destination)
+			}
 
 		override fun close() {
 			receiverByQueue.values.closeAll()
@@ -77,6 +88,10 @@ object Artemis {
 		properties
 	) {
 
+		override fun start() {
+			clientSession.start()
+		}
+
 		private val clientProducer = clientSession.createProducer()
 
 		override fun produce(destination: String, body: ByteArray, properties: ArtemisProperties?) {
@@ -84,6 +99,7 @@ object Artemis {
 				bodyBuffer.writeBytes(body)
 			}
 			clientProducer.send(destination, message)
+			clientSession.commit()
 		}
 
 		override fun getProducer(destination: String, properties: ArtemisProperties?): ClientProducer =
@@ -103,23 +119,46 @@ object Artemis {
 
 		private lateinit var clientFactory: ClientSessionFactory
 		private lateinit var serverLocator: ServerLocator
+		private lateinit var adminSession: ClientSession
 
 		override fun start() {
 			serverLocator = ActiveMQClient.createServerLocator(properties.serverLocatorURL)
 			clientFactory = serverLocator.createSessionFactory()
+			adminSession = createSession()
 		}
 
 		override fun createReceiverImpl(): ArtemisReceiver =
 			ArtemisReceiver(
 				properties = properties,
-				clientSession = clientFactory.createSession(),
+				clientSession = createSession(),
 			)
 
 		override fun createProducerImpl(): ArtemisProducer =
 			ArtemisProducer(
 				properties = properties,
-				clientSession = clientFactory.createSession()
+				clientSession = createSession()
 			)
+
+		override fun createQueue(queue: String) =
+			adminSession.createQueue(
+				QueueConfiguration(queue).apply {
+					routingType = RoutingType.ANYCAST
+				}
+			)
+
+		override fun deleteQueue(queue: String) {
+			adminSession.deleteQueue(queue)
+		}
+
+		private fun createSession() = clientFactory.createSession(
+			properties.username,
+			properties.password,
+			false,
+			false,
+			true,
+			false,
+			properties.ackBatchSize
+		)
 
 	}
 

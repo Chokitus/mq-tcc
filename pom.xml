@@ -70,6 +70,12 @@
 
     <dependencies>
 
+<!--        <dependency>-->
+<!--            <groupId>org.nield</groupId>-->
+<!--            <artifactId>kotlin-statistics</artifactId>-->
+<!--            <version>1.2.1</version>-->
+<!--        </dependency>-->
+
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-core</artifactId>

@@ -3,6 +3,7 @@ package br.edu.ufabc.chokitus.mq.factory
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.client.Startable
+import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import java.io.Closeable
@@ -19,8 +20,8 @@ import java.util.LinkedList
  * @constructor
  */
 abstract class AbstractClientFactory<
-		R : AbstractReceiver<*, *, Y>,
-		P : AbstractProducer<*, *, Y>,
+		R : AbstractReceiver<*, out AbstractMessage, Y>,
+		P : AbstractProducer<*, out AbstractMessage, Y>,
 		Y : ClientProperties
 		>(
 	protected val properties: Y
@@ -34,6 +35,16 @@ abstract class AbstractClientFactory<
 
 	fun createProducer() =
 		createProducerImpl().also(producers::add)
+
+	/**
+	 * These operations should be implemented only if it is not possible to define infrastructure by
+	 * Terraform.
+	 *
+	 * @param queue String
+	 * @return Unit
+	 */
+	open fun createQueue(queue: String): Unit = Unit
+	open fun deleteQueue(queue: String): Unit = Unit
 
 	protected abstract fun createReceiverImpl(): R
 	protected abstract fun createProducerImpl(): P

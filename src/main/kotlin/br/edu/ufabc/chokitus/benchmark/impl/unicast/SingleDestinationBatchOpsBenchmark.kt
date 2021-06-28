@@ -2,9 +2,9 @@ package br.edu.ufabc.chokitus.benchmark.impl.unicast
 
 import br.edu.ufabc.chokitus.benchmark.AbstractBenchmark
 import br.edu.ufabc.chokitus.benchmark.ClientFactory
+import br.edu.ufabc.chokitus.benchmark.ClientReceiver
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.SingleDestinationConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
-import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import com.google.common.collect.ConcurrentHashMultiset
 import java.util.UUID
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class SingleDestinationBatchOpsBenchmark :
-	AbstractBenchmark<SingleDestinationConfiguration, Unit>() {
+	AbstractBenchmark<SingleDestinationConfiguration>() {
 
 	private lateinit var testExecutor: ExecutorService
 	private var startTime: Long = 0
@@ -63,6 +63,8 @@ class SingleDestinationBatchOpsBenchmark :
 		with(configuration) {
 			testExecutor = Executors.newFixedThreadPool(producerCount + receiverCount)
 			activeProducers.set(configuration.producerCount)
+
+			clientFactory.createQueue(queue)
 		}
 	}
 
@@ -73,16 +75,18 @@ class SingleDestinationBatchOpsBenchmark :
 		runCatching {
 			testExecutor.shutdown()
 			testExecutor.awaitTermination(60, TimeUnit.SECONDS)
+
+			clientFactory.deleteQueue(queue)
 		}
 	}
 
 	private fun doReceiver(
-		receiver: AbstractReceiver<*, AbstractMessage, *>,
+		receiver: ClientReceiver,
 		configuration: SingleDestinationConfiguration
 	) {
 		receiver.start()
 		while (activeProducers.get() > 0) {
-			val messages = receiver.receiveBatch(queue)
+			val messages: List<AbstractMessage> = receiver.receiveBatch(queue)
 			val receivedTime = System.nanoTime()
 
 			messages.forEach { message ->
@@ -91,7 +95,7 @@ class SingleDestinationBatchOpsBenchmark :
 				observe(receivedTime, sentTime)
 			}
 
-			receiver.ackAll(messages)
+			// 			receiver.ackAll(messages)
 		}
 	}
 
