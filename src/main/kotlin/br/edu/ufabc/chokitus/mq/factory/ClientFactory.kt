@@ -1,5 +1,6 @@
 package br.edu.ufabc.chokitus.mq.factory
 
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.client.Startable
@@ -36,15 +37,8 @@ abstract class AbstractClientFactory<
 	fun createProducer() =
 		createProducerImpl().also(producers::add)
 
-	/**
-	 * These operations should be implemented only if it is not possible to define infrastructure by
-	 * Terraform.
-	 *
-	 * @param queue String
-	 * @return Unit
-	 */
-	open fun createQueue(queue: String): Unit = Unit
-	open fun deleteQueue(queue: String): Unit = Unit
+	open fun createDestination(config: DestinationConfiguration): Unit = Unit
+	open fun cleanUpDestinations(): Unit = Unit
 
 	protected abstract fun createReceiverImpl(): R
 	protected abstract fun createProducerImpl(): P

@@ -1,13 +1,12 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
-import org.apache.activemq.artemis.api.core.QueueConfiguration
-import org.apache.activemq.artemis.api.core.RoutingType
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient
 import org.apache.activemq.artemis.api.core.client.ClientConsumer
 import org.apache.activemq.artemis.api.core.client.ClientMessage
@@ -58,17 +57,18 @@ object Artemis {
 
 		override fun receiveBatch(
 			destination: String,
-			properties: ArtemisProperties?
+			properties: ReceiverConfiguration
 		): List<ArtemisMessage> {
 			return listOf()
 		}
 
-		override fun receive(destination: String, properties: ArtemisProperties?): ArtemisMessage? =
+		override fun receive(destination: String, properties: ReceiverConfiguration): ArtemisMessage? =
 			getReceiver(destination)
 				.receive(500)
 				?.let(::ArtemisMessage)
 
-		override fun ackAll(messages: List<ArtemisMessage>) = messages.forEach { it.ack() }
+		override fun ackAll(messages: List<ArtemisMessage>): Unit =
+			messages.forEach { it.ack() }
 
 		override fun getReceiver(destination: String, properties: ArtemisProperties?): ClientConsumer =
 			receiverByQueue.getOrPut(destination) {
@@ -139,16 +139,16 @@ object Artemis {
 				clientSession = createSession()
 			)
 
-		override fun createQueue(queue: String) =
-			adminSession.createQueue(
-				QueueConfiguration(queue).apply {
-					routingType = RoutingType.ANYCAST
-				}
-			)
-
-		override fun deleteQueue(queue: String) {
-			adminSession.deleteQueue(queue)
-		}
+		// 		override fun createQueue(queue: String) =
+		// 			adminSession.createQueue(
+		// 				QueueConfiguration(queue).apply {
+		// 					routingType = RoutingType.ANYCAST
+		// 				}
+		// 			)
+		//
+		// 		override fun deleteQueue(queue: String) {
+		// 			adminSession.deleteQueue(queue)
+		// 		}
 
 		private fun createSession() = clientFactory.createSession(
 			properties.username,

@@ -1,13 +1,17 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
+import br.edu.ufabc.chokitus.util.Extensions.runDelayError
 import java.util.UUID
 import java.util.concurrent.TimeUnit.MILLISECONDS
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.Consumer
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.api.MessageId
@@ -57,7 +61,7 @@ object Pulsar {
 
 		override fun receiveBatch(
 			destination: String,
-			properties: PulsarProperties?
+			properties: ReceiverConfiguration
 		): List<PulsarMessage> =
 			getReceiver(destination).let { receiver ->
 				receiver
@@ -65,7 +69,7 @@ object Pulsar {
 					.map { PulsarMessage(it, receiver) }
 			}
 
-		override fun receive(destination: String, properties: PulsarProperties?): PulsarMessage? =
+		override fun receive(destination: String, properties: ReceiverConfiguration): PulsarMessage? =
 			getReceiver(destination)
 				.let { receiver ->
 					receiver
@@ -135,9 +139,21 @@ object Pulsar {
 	) : AbstractClientFactory<PulsarReceiver, PulsarProducer, PulsarProperties>(properties) {
 
 		private lateinit var client: PulsarClient
+		private lateinit var admin: PulsarAdmin
+
+		private val createdTopics: MutableSet<String> = hashSetOf()
+
+		override fun createDestination(config: DestinationConfiguration) {
+			createTopicIfNotCreated(config.topicName ?: config.queueName)
+		}
+
+		override fun cleanUpDestinations() {
+			runDelayError(createdTopics.map { { admin.topics().delete(it, true) } })
+		}
 
 		override fun start() {
 			client = PulsarClient.builder().serviceUrl(properties.serviceURL).build()
+			admin = PulsarAdmin.builder().serviceHttpUrl(properties.serviceURL).build()
 		}
 
 		override fun createReceiverImpl(): PulsarReceiver =
@@ -152,6 +168,15 @@ object Pulsar {
 				client
 			)
 
+		private fun createTopicIfNotCreated(topic: String) {
+			topic.takeIf { !createdTopics.contains(it) }
+				?.let(admin.topics()::createNonPartitionedTopic)
+			createdTopics.add(topic)
+		}
+
+		override fun close() {
+			runDelayError(admin::close, client::close)
+		}
 	}
 
 }

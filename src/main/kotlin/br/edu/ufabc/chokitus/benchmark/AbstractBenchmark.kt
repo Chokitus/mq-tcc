@@ -1,10 +1,15 @@
 package br.edu.ufabc.chokitus.benchmark
 
+import br.edu.ufabc.chokitus.benchmark.data.TestResult
+import br.edu.ufabc.chokitus.benchmark.data.TimedInterval
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.Extensions.forEachRun
+import java.nio.file.Paths
+import kotlin.io.path.bufferedWriter
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -19,12 +24,20 @@ abstract class AbstractBenchmark<C> {
 
 	protected val log: Logger = LoggerFactory.getLogger(javaClass)
 
+	protected var testStartTime: Long = 0
+
+	companion object {
+		private const val NANO_TO_SECOND = 1_000_000_000L
+	}
+
 	fun doBenchmark(configuration: C, clientFactory: ClientFactory): Any? {
 		val result = clientFactory.use { factory ->
 			factory.start()
 
 			log.info("Preparing test!")
 			prepareTest(configuration, factory)
+
+			System.nanoTime()
 
 			log.info("Test prepared, executing...")
 			val result = runCatching { doBenchmarkImpl(configuration, factory) }
@@ -61,7 +74,7 @@ abstract class AbstractBenchmark<C> {
 	protected abstract fun doBenchmarkImpl(
 		configuration: C,
 		clientFactory: ClientFactory
-	)
+	): TestResult
 
 	/**
 	 * This should aggregate any data produced by the benchmark, being data exchanged, sent intervals,
@@ -70,10 +83,61 @@ abstract class AbstractBenchmark<C> {
 	 *
 	 * @return T
 	 */
-	open fun aggregateData(result: Result<Unit>): Any? {
-		result.getOrThrow()
-		return null
+	open fun aggregateData(result: Result<TestResult>) {
+		val resultData = result.getOrThrow()
+
+		resultData.produceIntervals.forEachIndexed { producerIndex, intervals ->
+			classify(intervals, producerIndex)
+		}
+
+		resultData.latenciesAndReceiveIntervals.forEachIndexed { index, (latencies, receive) ->
+			classify(latencies, index)
+			classify(receive, index)
+		}
+
+		val produceByTimestamps = resultData.produceIntervals.flatten().sortedBy { it.timestamp }
+		val (latencyTimestamps, receiveTimestamps) = resultData.flattenSortedLatencyAndReceive()
+
+		val time = time()
+		Paths.get("$time/producer.csv")
+			.also { log.info("Saving producer timestamps to ${it.toAbsolutePath()}") }
+			.bufferedWriter().use { writer ->
+			produceByTimestamps.forEachRun {
+				writer.write("$timestamp;$classification;$interval\n")
+			}
+		}
+
+		Paths.get("$time/receiver_latency.csv")
+			.also { log.info("Saving receiver latency timestamps to ${it.toAbsolutePath()}") }
+			.bufferedWriter().use { writer ->
+			latencyTimestamps.forEachRun {
+				writer.write("$timestamp;$classification;$interval\n")
+			}
+		}
+
+		Paths.get("$time/receiver.csv")
+			.also { log.info("Saving receiver timestamps to ${it.toAbsolutePath()}") }
+			.bufferedWriter()
+			.use { writer ->
+			receiveTimestamps.forEachRun {
+				writer.write("$timestamp;$classification;$interval\n")
+			}
+		}
 	}
+
+	private fun classify(
+		list: List<TimedInterval>,
+		index: Int
+	) {
+		list.forEach {
+			it.classification = index
+		}
+	}
+
+	protected fun time() = System.nanoTime()
+
+	protected fun secondsFromStart(time: Long) =
+		(time - testStartTime) / NANO_TO_SECOND
 
 }
 

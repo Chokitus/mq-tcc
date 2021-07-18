@@ -15,10 +15,11 @@ fun main() {
 			)
 		)
 	val testConfiguration = SingleDestinationConfiguration(
-		receiverCount = 2,
-		producerCount = 1,
 		messageCount = 100000,
-		messageSize = 100
+		messageSize = 100,
+		receiverConfigurations = listOf(),
+		producerConfigurations = listOf(),
+		destinationConfigurations = listOf()
 	)
 	SingleDestinationSingleOpsBenchmark()
 		.doBenchmark(

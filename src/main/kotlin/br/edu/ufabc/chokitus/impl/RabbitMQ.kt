@@ -1,5 +1,6 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
@@ -38,7 +39,7 @@ object RabbitMQ {
 
 	class RabbitMQReceiver(
 		properties: RabbitMQProperties,
-		private val connection: Connection
+		connection: Connection
 	) : AbstractReceiver<Channel, RabbitMQMessage, RabbitMQProperties>(properties) {
 
 		private val receiver = connection.createChannel()
@@ -57,7 +58,7 @@ object RabbitMQ {
 
 		override fun receiveBatch(
 			destination: String,
-			properties: RabbitMQProperties?
+			properties: ReceiverConfiguration
 		): List<RabbitMQMessage> {
 
 			return listOf()
@@ -70,9 +71,9 @@ object RabbitMQ {
 			TODO("Not yet implemented")
 		}
 
-		override fun receive(destination: String, properties: RabbitMQProperties?): RabbitMQMessage? =
+		override fun receive(destination: String, properties: ReceiverConfiguration): RabbitMQMessage? =
 			receiver
-				.basicGet(destination, properties?.autoAck ?: false) // Nullable
+				.basicGet(destination, this.properties.autoAck ?: false) // Nullable
 				?.let { RabbitMQMessage(it, ackFunction, nackFunction) }
 	}
 

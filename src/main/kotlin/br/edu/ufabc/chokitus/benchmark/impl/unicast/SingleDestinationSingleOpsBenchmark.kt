@@ -4,94 +4,65 @@ import br.edu.ufabc.chokitus.benchmark.AbstractBenchmark
 import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.ClientProducer
 import br.edu.ufabc.chokitus.benchmark.ClientReceiver
+import br.edu.ufabc.chokitus.benchmark.data.TestResult
+import br.edu.ufabc.chokitus.benchmark.data.TimedInterval
+import br.edu.ufabc.chokitus.benchmark.data.timing
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.SingleDestinationConfiguration
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletableFuture.allOf
-import java.util.concurrent.CompletableFuture.runAsync
 import java.util.concurrent.CompletableFuture.supplyAsync
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import org.apache.commons.math3.stat.StatUtils
+import org.apache.commons.lang3.RandomStringUtils
 
 class SingleDestinationSingleOpsBenchmark : AbstractBenchmark<SingleDestinationConfiguration>() {
 
 	private lateinit var testExecutor: ExecutorService
 
-	private var testStartTime: Long = 0
-	private var testEndTime: Long = 0
+	private lateinit var defaultMessage: String
 
-	companion object {
-		private const val NANO_TO_SECOND = 1_000_000_000L
-	}
-
-	private val message: String = UUID.randomUUID().toString()
-	private val queue: String = UUID.randomUUID().toString()
-
-	private val messageSize = message.length
 	private val activeProducers = AtomicInteger(0)
-
-	private lateinit var latencies: List<Pair<Long, Long>>
-
-	data class TestResult(
-		val percentile1: Double,
-		val percentile50: Double,
-		val percentile99: Double,
-		val max: Double,
-		val average: Double
-	)
-
-	override fun aggregateData(result: Result<Unit>): Map<Long, TestResult> {
-		result.getOrThrow()
-		val grouped = latencies.groupBy(
-			{ it.first },
-			{ it.second / 10000 / 100.0 }
-		)
-		return grouped.mapValues { (key, value) ->
-			val asArray = value.toDoubleArray()
-			TestResult(
-				percentile1 = StatUtils.percentile(asArray, 1.0),
-				percentile50 = StatUtils.percentile(asArray, 50.0),
-				percentile99 = StatUtils.percentile(asArray, 99.0),
-				max = value.maxOf { it },
-				average = value.average()
-			)
-		}
-
-	}
 
 	override fun doBenchmarkImpl(
 		configuration: SingleDestinationConfiguration,
 		clientFactory: ClientFactory
-	) {
-		testStartTime = System.nanoTime()
+	): TestResult {
+		testStartTime = time()
+		defaultMessage = RandomStringUtils.random(configuration.messageSize)
 
-		val receiver: List<CompletableFuture<List<Pair<Long, Long>>>> =
+		val receiver: List<CompletableFuture<Pair<List<TimedInterval>, List<TimedInterval>>>> =
 			(1..configuration.receiverCount).map {
 				supplyAsync(
 					{
 						log.info("Creating receiver $it out of ${configuration.receiverCount}...")
-						doReceiver(clientFactory.createReceiver(), configuration)
+						doReceiver(clientFactory.createReceiver(), configuration.receiverConfigurations[it])
 					},
 					testExecutor
 				)
 			}
 
-		val producers: List<CompletableFuture<Void>> = (1..configuration.producerCount).map {
-			runAsync(
-				{
-					log.info("Creating producer $it out of ${configuration.producerCount}...")
-					doProducer(clientFactory.createProducer(), configuration)
-				},
-				testExecutor
-			)
-		}
+		val producers: List<CompletableFuture<List<TimedInterval>>> =
+			(1..configuration.producerCount).map {
+				supplyAsync(
+					{
+						log.info("Creating producer $it out of ${configuration.producerCount}...")
+						doProducer(
+							producer = clientFactory.createProducer(),
+							messageCount = configuration.messageCount,
+							configuration = configuration.producerConfigurations[it]
+						)
+					},
+					testExecutor
+				)
+			}
 
-		allOf(*producers.toTypedArray()).get()
-
-		this.latencies = receiver.flatMap { it.get() }
+		return TestResult(
+			latenciesAndReceiveIntervals = receiver.map { it.get() },
+			produceIntervals = producers.map { it.get() }
+		)
 	}
 
 	override fun prepareTest(
@@ -102,7 +73,6 @@ class SingleDestinationSingleOpsBenchmark : AbstractBenchmark<SingleDestinationC
 			testExecutor = Executors.newFixedThreadPool(producerCount + receiverCount)
 			activeProducers.set(configuration.producerCount)
 
-			clientFactory.createQueue(queue)
 		}
 	}
 
@@ -111,7 +81,7 @@ class SingleDestinationSingleOpsBenchmark : AbstractBenchmark<SingleDestinationC
 		clientFactory: ClientFactory
 	) {
 		runCatching {
-			clientFactory.deleteQueue(queue)
+			clientFactory.cleanUpDestinations()
 
 			testExecutor.shutdown()
 			testExecutor.awaitTermination(60, TimeUnit.SECONDS)
@@ -120,41 +90,63 @@ class SingleDestinationSingleOpsBenchmark : AbstractBenchmark<SingleDestinationC
 
 	private fun doReceiver(
 		receiver: ClientReceiver,
-		configuration: SingleDestinationConfiguration
-	): List<Pair<Long, Long>> {
-		val latencies = ArrayList<Pair<Long, Long>>()
-		fun observe(receivedTime: Long, sentTime: Long) =
-			latencies.add(
-				(receivedTime - testStartTime) / NANO_TO_SECOND to receivedTime - sentTime
-			)
+		configuration: ReceiverConfiguration
+	): Pair<ArrayList<TimedInterval>, ArrayList<TimedInterval>> {
+		val latenciesWithTimestamp = ArrayList<TimedInterval>()
+		val intervalWithTimestamp = ArrayList<TimedInterval>()
+
+		fun observe(receivedTime: Long, sentTime: Long, requestTime: Long) {
+			val timestamp = secondsFromStart(receivedTime)
+			val latency = receivedTime - sentTime
+			val receiveInterval = receivedTime - requestTime
+			latenciesWithTimestamp.add(timestamp timing latency)
+			intervalWithTimestamp.add(timestamp timing receiveInterval)
+		}
 
 		log.info("Starting receiver...")
 		receiver.start()
 		log.info("Receiver started successfully! Will now proceed to test...")
-		while (activeProducers.get() > 0) {
-			receiver.receive(queue)?.let { message ->
-				val receivedTime = System.nanoTime()
-				val sentTime = message.body().decodeToString().substring(messageSize).toLong()
+		var receivedAny = false
+		while (activeProducers.get() > 0 || receivedAny) {
+			val requestTime = time()
+			val message = receiver.receive(configuration.queueName, configuration)
+			val receivedTime = time()
+			receivedAny = message != null
+			if (message != null) {
+				val sentTime = message.body().decodeToString().substring(defaultMessage.length).toLong()
 
-				observe(receivedTime, sentTime)
+				observe(receivedTime, sentTime, requestTime)
 				message.ack()
 			}
 		}
 		log.info("All producers finished their work, stopping...")
-		return latencies
+		return latenciesWithTimestamp to intervalWithTimestamp
 	}
 
 	private fun doProducer(
 		producer: ClientProducer,
-		configuration: SingleDestinationConfiguration
-	) {
+		messageCount: Int,
+		configuration: ProducerConfiguration,
+	): ArrayList<TimedInterval> {
+		val requestIntervalsWithTimestamp = ArrayList<TimedInterval>()
+		fun observe(requestTime: Long, producedTime: Long) {
+			val timestamp = secondsFromStart(requestTime)
+			val interval = producedTime - requestTime
+			requestIntervalsWithTimestamp.add(timestamp timing interval)
+		}
+
 		log.info("Starting receiver...")
 		producer.start()
 		log.info("Producer started successfully! Will now proceed to test...")
-		repeat(configuration.messageCount) {
-			producer.produce(queue, "$message${System.nanoTime()}".encodeToByteArray())
+		repeat(messageCount) {
+			val requestTime = time()
+			producer.produce(configuration.destinationName, "$defaultMessage${time()}".encodeToByteArray())
+			val producedTime = time()
+			observe(requestTime, producedTime)
 		}
 		activeProducers.decrementAndGet()
+
+		return requestIntervalsWithTimestamp
 	}
 
 }
