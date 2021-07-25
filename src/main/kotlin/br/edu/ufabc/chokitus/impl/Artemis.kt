@@ -1,12 +1,21 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.ClientFactory
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
+import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
+import br.edu.ufabc.chokitus.util.Extensions.runDelayError
+import kotlin.reflect.KClass
+import org.apache.activemq.artemis.api.core.ActiveMQQueueExistsException
+import org.apache.activemq.artemis.api.core.QueueConfiguration
+import org.apache.activemq.artemis.api.core.RoutingType
+import org.apache.activemq.artemis.api.core.SimpleString
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient
 import org.apache.activemq.artemis.api.core.client.ClientConsumer
 import org.apache.activemq.artemis.api.core.client.ClientMessage
@@ -15,7 +24,7 @@ import org.apache.activemq.artemis.api.core.client.ClientSession
 import org.apache.activemq.artemis.api.core.client.ClientSessionFactory
 import org.apache.activemq.artemis.api.core.client.ServerLocator
 
-object Artemis {
+object Artemis : BenchmarkDefiner {
 
 	data class ArtemisProperties(
 		internal val serverLocatorURL: String,
@@ -121,6 +130,9 @@ object Artemis {
 		private lateinit var serverLocator: ServerLocator
 		private lateinit var adminSession: ClientSession
 
+		val createdAddresses: MutableSet<String> = mutableSetOf()
+		val createdQueues: MutableSet<String> = mutableSetOf()
+
 		override fun start() {
 			serverLocator = ActiveMQClient.createServerLocator(properties.serverLocatorURL)
 			clientFactory = serverLocator.createSessionFactory()
@@ -139,16 +151,47 @@ object Artemis {
 				clientSession = createSession()
 			)
 
-		// 		override fun createQueue(queue: String) =
-		// 			adminSession.createQueue(
-		// 				QueueConfiguration(queue).apply {
-		// 					routingType = RoutingType.ANYCAST
-		// 				}
-		// 			)
-		//
-		// 		override fun deleteQueue(queue: String) {
-		// 			adminSession.deleteQueue(queue)
-		// 		}
+		override fun createDestination(config: DestinationConfiguration) {
+			val value = config.additionalInfo()["routingType"] ?: "ANYCAST"
+			val parsedRoutingType = RoutingType.valueOf(value)
+			val addressName = config.topicOrQueue()
+			val queueName = config.queueName
+
+			if (!createdAddresses.contains(addressName)) {
+				adminSession.createAddress(
+					addressName.toSimpleString(),
+					parsedRoutingType,
+					false
+				)
+				createdAddresses.add(addressName)
+			}
+
+			runCatching {
+				adminSession.createQueue(
+					QueueConfiguration(queueName).apply {
+						address = addressName.toSimpleString()
+						isDurable = true
+						isExclusive = false
+						isEnabled = true
+						isAutoCreateAddress = false
+						routingType = parsedRoutingType
+					}
+				)
+			}
+				.onFailure {
+					if (it !is ActiveMQQueueExistsException) {
+						throw it
+					}
+				}
+
+			createdQueues.add(queueName)
+		}
+
+		override fun cleanUpDestinations() {
+			createdQueues
+				.map { { adminSession.deleteQueue(it) } }
+				.let(::runDelayError)
+		}
 
 		private fun createSession() = clientFactory.createSession(
 			properties.username,
@@ -162,4 +205,11 @@ object Artemis {
 
 	}
 
+	override fun clientFactory(): (ClientProperties) -> ClientFactory =
+		{ ArtemisClientFactory(it as ArtemisProperties) }
+
+	override fun clientProperties(): KClass<out ClientProperties> = ArtemisProperties::class
+
 }
+
+private fun String.toSimpleString() = SimpleString.toSimpleString(this)

@@ -1,19 +1,25 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.ClientFactory
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
+import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.Extensions.runDelayError
+import com.rabbitmq.client.BuiltinExchangeType
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.GetResponse
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
+import kotlin.reflect.KClass
 
-object RabbitMQ {
+object RabbitMQ : BenchmarkDefiner {
 
 	data class RabbitMQProperties(
 		val username: String,
@@ -100,6 +106,9 @@ object RabbitMQ {
 		properties: RabbitMQProperties
 	) : AbstractClientFactory<RabbitMQReceiver, RabbitMQProducer, RabbitMQProperties>(properties) {
 
+		private val declaredExchanges: MutableSet<String> = mutableSetOf()
+		private val declaredQueues: MutableSet<String> = mutableSetOf()
+
 		private val connectionFactory =
 			ConnectionFactory().apply {
 				username = properties.username
@@ -109,6 +118,47 @@ object RabbitMQ {
 				port = properties.port
 			}
 
+		private val adminConnection = connectionFactory.newConnection("admin")
+		private val adminChannel = adminConnection.createChannel()
+
+		override fun createDestination(config: DestinationConfiguration) {
+			val exchangeName = config.topicName
+			val queueName = config.queueName
+
+			if (!declaredQueues.contains(queueName)) {
+				adminChannel.queueDeclare(
+					queueName,
+					true,
+					false,
+					false,
+					mapOf()
+				)
+				declaredQueues.add(queueName)
+			}
+
+			if (exchangeName != null) {
+				adminChannel.exchangeDeclare(
+					exchangeName,
+					BuiltinExchangeType.DIRECT,
+					true
+				)
+				declaredExchanges.add(exchangeName)
+
+				adminChannel.queueBind(queueName, exchangeName, queueName)
+			}
+
+		}
+
+		override fun cleanUpDestinations() {
+			val deleteQueues: List<() -> Unit> = declaredQueues
+				.map { { adminChannel.queueDelete(it) } }
+
+			val deleteExchanges: List<() -> Unit> = declaredExchanges
+				.map { { adminChannel.exchangeDelete(it) } }
+
+			runDelayError(deleteQueues + deleteExchanges)
+		}
+
 		override fun createReceiverImpl(): RabbitMQReceiver =
 			RabbitMQReceiver(properties, connectionFactory.newConnection())
 
@@ -116,4 +166,9 @@ object RabbitMQ {
 			RabbitMQProducer(properties, connectionFactory.newConnection())
 
 	}
+
+	override fun clientFactory(): (ClientProperties) -> ClientFactory =
+		{ RabbitMQClientFactory(it as RabbitMQProperties) }
+
+	override fun clientProperties(): KClass<out ClientProperties> = RabbitMQProperties::class
 }

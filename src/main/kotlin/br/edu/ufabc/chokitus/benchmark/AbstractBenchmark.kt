@@ -2,6 +2,7 @@ package br.edu.ufabc.chokitus.benchmark
 
 import br.edu.ufabc.chokitus.benchmark.data.TestResult
 import br.edu.ufabc.chokitus.benchmark.data.TimedInterval
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.TestConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
@@ -10,6 +11,8 @@ import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.forEachRun
 import java.nio.file.Paths
 import kotlin.io.path.bufferedWriter
+import kotlin.io.path.createDirectories
+import kotlin.io.path.createFile
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -20,7 +23,7 @@ import org.slf4j.LoggerFactory
  * @param T The benchmark result's extra data.
  * @param T The benchmark's configuration
  */
-abstract class AbstractBenchmark<C> {
+abstract class AbstractBenchmark {
 
 	protected val log: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -30,14 +33,12 @@ abstract class AbstractBenchmark<C> {
 		private const val NANO_TO_SECOND = 1_000_000_000L
 	}
 
-	fun doBenchmark(configuration: C, clientFactory: ClientFactory): Any? {
+	fun doBenchmark(configuration: TestConfiguration, clientFactory: ClientFactory): Any {
 		val result = clientFactory.use { factory ->
 			factory.start()
 
 			log.info("Preparing test!")
 			prepareTest(configuration, factory)
-
-			System.nanoTime()
 
 			log.info("Test prepared, executing...")
 			val result = runCatching { doBenchmarkImpl(configuration, factory) }
@@ -60,11 +61,14 @@ abstract class AbstractBenchmark<C> {
 	 * @param clientFactory AbstractClientFactory<out AbstractReceiver<*, AbstractMessage, *>, *, *>
 	 */
 	protected abstract fun prepareTest(
-		configuration: C,
+		configuration: TestConfiguration,
 		clientFactory: ClientFactory
 	)
 
-	protected abstract fun cleanUp(configuration: C, clientFactory: ClientFactory): Unit
+	protected abstract fun cleanUp(
+		configuration: TestConfiguration,
+		clientFactory: ClientFactory
+	): Unit
 
 	/**
 	 *  Define and execute fully this test, blocking the Main thread until this is finished.
@@ -72,7 +76,7 @@ abstract class AbstractBenchmark<C> {
 	 *  This should be the only benchmarked method.
 	 */
 	protected abstract fun doBenchmarkImpl(
-		configuration: C,
+		configuration: TestConfiguration,
 		clientFactory: ClientFactory
 	): TestResult
 
@@ -98,31 +102,40 @@ abstract class AbstractBenchmark<C> {
 		val produceByTimestamps = resultData.produceIntervals.flatten().sortedBy { it.timestamp }
 		val (latencyTimestamps, receiveTimestamps) = resultData.flattenSortedLatencyAndReceive()
 
-		val time = time()
-		Paths.get("$time/producer.csv")
-			.also { log.info("Saving producer timestamps to ${it.toAbsolutePath()}") }
-			.bufferedWriter().use { writer ->
-			produceByTimestamps.forEachRun {
-				writer.write("$timestamp;$classification;$interval\n")
-			}
-		}
+		val prefix = "test_results/${time()}"
 
-		Paths.get("$time/receiver_latency.csv")
-			.also { log.info("Saving receiver latency timestamps to ${it.toAbsolutePath()}") }
-			.bufferedWriter().use { writer ->
-			latencyTimestamps.forEachRun {
-				writer.write("$timestamp;$classification;$interval\n")
-			}
-		}
+		Paths.get(prefix).createDirectories()
 
-		Paths.get("$time/receiver.csv")
-			.also { log.info("Saving receiver timestamps to ${it.toAbsolutePath()}") }
+		Paths.get("$prefix/producer.csv")
+			.toAbsolutePath()
+			.createFile()
+			.also { log.info("Saving producer timestamps to $it") }
+			.bufferedWriter().use { writer ->
+				produceByTimestamps.forEachRun {
+					writer.write("$timestamp;$classification;$interval\n")
+				}
+			}
+
+		Paths.get("$prefix/receiver_latency.csv")
+			.toAbsolutePath()
+			.createFile()
+			.also { log.info("Saving receiver latency timestamps to $it") }
+			.bufferedWriter().use { writer ->
+				latencyTimestamps.forEachRun {
+					writer.write("$timestamp;$classification;$interval\n")
+				}
+			}
+
+		Paths.get("$prefix/receiver.csv")
+			.toAbsolutePath()
+			.createFile()
+			.also { log.info("Saving receiver timestamps to $it") }
 			.bufferedWriter()
 			.use { writer ->
-			receiveTimestamps.forEachRun {
-				writer.write("$timestamp;$classification;$interval\n")
+				receiveTimestamps.forEachRun {
+					writer.write("$timestamp;$classification;$interval\n")
+				}
 			}
-		}
 	}
 
 	private fun classify(

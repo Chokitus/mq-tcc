@@ -8,7 +8,7 @@ class SmartCastingMap(
 ) {
 
 	@Suppress("UNCHECKED_CAST")
-	fun <T : Any> get(key: String): T? = backingProperties[key] as T?
+	operator fun <T : Any> get(key: String): T? = backingProperties[key] as T?
 
 	@Suppress("UNCHECKED_CAST")
 	fun <T : Any> getNotNull(key: String): T = backingProperties[key]!! as T

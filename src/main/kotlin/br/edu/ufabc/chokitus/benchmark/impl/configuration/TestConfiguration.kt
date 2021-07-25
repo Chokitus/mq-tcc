@@ -2,7 +2,7 @@ package br.edu.ufabc.chokitus.benchmark.impl.configuration
 
 import br.edu.ufabc.chokitus.util.SmartCastingMap
 
-data class SingleDestinationConfiguration(
+data class TestConfiguration(
 	val receiverConfigurations: List<ReceiverConfiguration>,
 	val producerConfigurations: List<ProducerConfiguration>,
 	val destinationConfigurations: List<DestinationConfiguration>,
@@ -32,5 +32,10 @@ data class DestinationConfiguration(
 	val topicName: String?,
 	private val additionalInfo: Map<String, Any>?
 ) {
-	fun additionalInfo(): SmartCastingMap = SmartCastingMap(additionalInfo ?: mapOf())
+
+	private val smartCastingInfo =
+		lazy { SmartCastingMap(additionalInfo ?: mapOf()) }
+
+	fun additionalInfo(): SmartCastingMap = smartCastingInfo.value
+	fun topicOrQueue(): String = topicName ?: queueName
 }

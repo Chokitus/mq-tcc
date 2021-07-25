@@ -18,3 +18,8 @@ services:
 volumes:
   rabbitmq_data:
     driver: local
+
+networks:
+  default:
+    external: true
+    name: mq-tests-network

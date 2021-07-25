@@ -1,4 +1,4 @@
-version: '2'
+version: '3.9'
 
 services:
   #Service for nameserver
@@ -13,3 +13,7 @@ services:
       ARTEMIS_PASSWORD: mq-test
       ARTEMIS_MIN_MEMORY: "1512M"
       ARTEMIS_MAX_MEMORY: "2000M"
+
+networks:
+  default:
+    name: mq-tests-network

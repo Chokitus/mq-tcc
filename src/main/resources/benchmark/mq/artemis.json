@@ -1,0 +1,6 @@
+{
+  "serverLocatorURL": "tcp://localhost:61616",
+  "username": "mq-test",
+  "password": "mq-test",
+  "ackBatchSize": 10
+}

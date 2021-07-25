@@ -1,7 +1,9 @@
 package br.edu.ufabc.chokitus.impl
 
+import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
+import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
@@ -11,6 +13,7 @@ import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
 import java.util.UUID
 import java.util.concurrent.TimeUnit.MILLISECONDS
+import kotlin.reflect.KClass
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.Consumer
 import org.apache.pulsar.client.api.Message
@@ -20,7 +23,7 @@ import org.apache.pulsar.client.api.PulsarClient
 import org.apache.pulsar.client.api.SubscriptionInitialPosition
 import org.apache.pulsar.client.api.SubscriptionType
 
-object Pulsar {
+object Pulsar : BenchmarkDefiner {
 
 	data class PulsarProperties(
 		val serviceURL: String,
@@ -178,5 +181,10 @@ object Pulsar {
 			runDelayError(admin::close, client::close)
 		}
 	}
+
+	override fun clientFactory(): (ClientProperties) -> ClientFactory =
+		{ PulsarClientFactory(it as PulsarProperties) }
+
+	override fun clientProperties(): KClass<out ClientProperties> = PulsarProperties::class
 
 }

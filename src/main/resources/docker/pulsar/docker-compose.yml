@@ -24,3 +24,8 @@ services:
       - "80:80"
     environment:
       - SERVICE_URL=http://standalone:8080
+
+networks:
+  default:
+    external: true
+    name: mq-tests-network
