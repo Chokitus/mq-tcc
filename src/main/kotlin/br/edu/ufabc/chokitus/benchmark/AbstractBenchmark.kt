@@ -68,7 +68,7 @@ abstract class AbstractBenchmark {
 	protected abstract fun cleanUp(
 		configuration: TestConfiguration,
 		clientFactory: ClientFactory
-	): Unit
+	)
 
 	/**
 	 *  Define and execute fully this test, blocking the Main thread until this is finished.

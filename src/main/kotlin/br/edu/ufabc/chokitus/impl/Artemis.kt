@@ -134,7 +134,10 @@ object Artemis : BenchmarkDefiner {
 		val createdQueues: MutableSet<String> = mutableSetOf()
 
 		override fun start() {
-			serverLocator = ActiveMQClient.createServerLocator(properties.serverLocatorURL)
+			serverLocator = ActiveMQClient.createServerLocator(properties.serverLocatorURL).apply {
+				isBlockOnDurableSend = false
+				isBlockOnAcknowledge = false
+			}
 			clientFactory = serverLocator.createSessionFactory()
 			adminSession = createSession()
 		}
