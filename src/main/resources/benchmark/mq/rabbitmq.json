@@ -1,0 +1,8 @@
+{
+  "username": "mq-test",
+  "password": "mq-test",
+  "virtualHost": "/",
+  "host": "mq-test-rabbitmq",
+  "port": 5672,
+  "autoAck": false
+}

@@ -1,12 +1,13 @@
 package br.edu.ufabc.chokitus.mq.factory
 
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.client.Startable
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
-import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import java.io.Closeable
 import java.util.LinkedList
 
@@ -31,20 +32,20 @@ abstract class AbstractClientFactory<
 	private val receivers: MutableList<R> = LinkedList()
 	private val producers: MutableList<P> = LinkedList()
 
-	fun createReceiver() =
-		createReceiverImpl().also(receivers::add)
+	fun createReceiver(receiverConfiguration: ReceiverConfiguration) =
+		createReceiverImpl(receiverConfiguration).also(receivers::add)
 
-	fun createProducer() =
-		createProducerImpl().also(producers::add)
+	fun createProducer(producerConfiguration: ProducerConfiguration) =
+		createProducerImpl(producerConfiguration).also(producers::add)
 
 	open fun createDestination(config: DestinationConfiguration): Unit = Unit
 	open fun cleanUpDestinations(): Unit = Unit
 
-	protected abstract fun createReceiverImpl(): R
-	protected abstract fun createProducerImpl(): P
+	protected abstract fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration? = null): R
+	protected abstract fun createProducerImpl(producerConfiguration: ProducerConfiguration? = null): P
 
 	override fun close() {
-		(receivers + producers).closeAll()
+		//		(receivers + producers).closeAll()
 		closeImpl()
 	}
 

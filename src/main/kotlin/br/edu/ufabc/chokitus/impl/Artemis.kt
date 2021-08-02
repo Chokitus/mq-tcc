@@ -2,6 +2,7 @@ package br.edu.ufabc.chokitus.impl
 
 import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
@@ -73,7 +74,7 @@ object Artemis : BenchmarkDefiner {
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): ArtemisMessage? =
 			getReceiver(destination)
-				.receive(500)
+				.receive(1000)
 				?.let(::ArtemisMessage)
 
 		override fun ackAll(messages: List<ArtemisMessage>): Unit =
@@ -130,8 +131,8 @@ object Artemis : BenchmarkDefiner {
 		private lateinit var serverLocator: ServerLocator
 		private lateinit var adminSession: ClientSession
 
-		val createdAddresses: MutableSet<String> = mutableSetOf()
-		val createdQueues: MutableSet<String> = mutableSetOf()
+		private val createdAddresses: MutableSet<String> = mutableSetOf()
+		private val createdQueues: MutableSet<String> = mutableSetOf()
 
 		override fun start() {
 			serverLocator = ActiveMQClient.createServerLocator(properties.serverLocatorURL).apply {
@@ -142,13 +143,13 @@ object Artemis : BenchmarkDefiner {
 			adminSession = createSession()
 		}
 
-		override fun createReceiverImpl(): ArtemisReceiver =
+		override fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration?): ArtemisReceiver =
 			ArtemisReceiver(
 				properties = properties,
 				clientSession = createSession(),
 			)
 
-		override fun createProducerImpl(): ArtemisProducer =
+		override fun createProducerImpl(producerConfiguration: ProducerConfiguration?): ArtemisProducer =
 			ArtemisProducer(
 				properties = properties,
 				clientSession = createSession()
@@ -196,15 +197,22 @@ object Artemis : BenchmarkDefiner {
 				.let(::runDelayError)
 		}
 
-		private fun createSession() = clientFactory.createSession(
-			properties.username,
-			properties.password,
-			false,
-			false,
-			true,
-			false,
-			properties.ackBatchSize
-		)
+		override fun closeImpl() {
+			adminSession.close()
+			clientFactory.close()
+			serverLocator.close()
+		}
+
+		private fun createSession() =
+			clientFactory.createSession(
+				properties.username,
+				properties.password,
+				false,
+				false,
+				true,
+				false,
+				properties.ackBatchSize
+			)
 
 	}
 

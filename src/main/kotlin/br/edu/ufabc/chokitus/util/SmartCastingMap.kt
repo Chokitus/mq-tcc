@@ -19,7 +19,7 @@ class SmartCastingMap(
 	fun <T : Any> getNotNull(property: ClientProperty): T =
 		getNotNull(property.property)
 
-	fun asProperties() = Properties().putAll(backingProperties)
+	fun asProperties(): Properties = Properties().apply { putAll(backingProperties) }
 
 	companion object {
 		fun empty() = SmartCastingMap(mapOf())

@@ -3,7 +3,7 @@ package br.edu.ufabc.chokitus.util
 object Extensions {
 
 	fun <T : AutoCloseable> Collection<T>.closeAll() =
-		runDelayError(map { { it.close() } })
+		runDelayError(map { { it?.close() } })
 
 	fun runDelayError(vararg functions: () -> Unit) =
 		runDelayError(functions.toList())

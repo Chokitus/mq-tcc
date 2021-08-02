@@ -4,13 +4,13 @@ import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.TestConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.unicast.SingleOpsBenchmark
 import br.edu.ufabc.chokitus.impl.Artemis
+import br.edu.ufabc.chokitus.impl.Kafka
 import br.edu.ufabc.chokitus.impl.Pulsar
 import br.edu.ufabc.chokitus.impl.RabbitMQ
 import br.edu.ufabc.chokitus.util.ArgumentParser
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.InputStream
-import java.lang.IllegalArgumentException
 import java.nio.file.Paths
 import kotlin.io.path.inputStream
 
@@ -19,6 +19,7 @@ val testableClients =
 		"ARTEMIS" to (Artemis.clientFactory() to Artemis.clientProperties()),
 		"RABBITMQ" to (RabbitMQ.clientFactory() to RabbitMQ.clientProperties()),
 		"PULSAR" to (Pulsar.clientFactory() to Pulsar.clientProperties()),
+		"KAFKA" to (Kafka.clientFactory() to Kafka.clientProperties())
 	)
 
 fun main(vararg args: String) {
@@ -53,10 +54,16 @@ fun main(vararg args: String) {
 			.let<InputStream, TestConfiguration> { jacksonObjectMapper().readValue(it) }
 			.also { println("Successfully parsed test properties as $it") }
 
-	SingleOpsBenchmark()
+	//			./start.sh br --client artemis --consumers 1 --producers 64 --destinations 1 --size 1000 --count 100000
+
+	SingleOpsBenchmark(
+		arguments = arguments,
+		messageSize = arguments.messageSize,
+		messageCount = arguments.messageCount,
+	)
 		.doBenchmark(
 			configuration = testConfiguration,
-			clientFactory = clientFactory
+			clientFactory = clientFactory,
 		)
 
 }

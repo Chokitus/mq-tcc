@@ -1,0 +1,40 @@
+{
+  "receiverConfigurations": [
+    {
+      "queueName": "queue-1",
+      "topicName": "queue-1",
+      "batchSize": 1
+    },
+    {
+      "queueName": "queue-2",
+      "topicName": "queue-2",
+      "batchSize": 1
+    }
+  ],
+  "producerConfigurations": [
+    {
+      "destinationName": "queue-1",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "queue-2",
+      "batchSize": 1
+    }
+  ],
+  "destinationConfigurations": [
+    {
+      "queueName": "queue-1",
+      "topicName": "queue-1",
+      "additionalInfo": {
+        "subscriberCount": 1
+      }
+    },
+    {
+      "queueName": "queue-2",
+      "topicName": "queue-2",
+      "additionalInfo": {
+        "subscriberCount": 1
+      }
+    }
+  ]
+}

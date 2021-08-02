@@ -2,6 +2,7 @@ package br.edu.ufabc.chokitus.impl
 
 import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
@@ -15,8 +16,7 @@ import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.GetResponse
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedDeque
+import com.rabbitmq.client.MessageProperties
 import kotlin.reflect.KClass
 
 object RabbitMQ : BenchmarkDefiner {
@@ -28,7 +28,6 @@ object RabbitMQ : BenchmarkDefiner {
 		val host: String,
 		val port: Int,
 		val autoAck: Boolean?,
-		val batchReceive: Boolean
 	) : ClientProperties()
 
 	class RabbitMQMessage(
@@ -45,12 +44,10 @@ object RabbitMQ : BenchmarkDefiner {
 
 	class RabbitMQReceiver(
 		properties: RabbitMQProperties,
-		connection: Connection
+		private val connection: Connection
 	) : AbstractReceiver<Channel, RabbitMQMessage, RabbitMQProperties>(properties) {
 
 		private val receiver = connection.createChannel()
-
-		private val queueMap = ConcurrentHashMap<String, ConcurrentLinkedDeque<RabbitMQMessage>>()
 
 		private val ackFunction: (GetResponse) -> Unit =
 			{ receiver.basicAck(it.envelope.deliveryTag, false) }
@@ -60,6 +57,7 @@ object RabbitMQ : BenchmarkDefiner {
 
 		override fun close() {
 			receiver.close()
+			connection.close()
 		}
 
 		override fun receiveBatch(
@@ -88,10 +86,15 @@ object RabbitMQ : BenchmarkDefiner {
 		private val connection: Connection
 	) : AbstractProducer<Channel, RabbitMQMessage, RabbitMQProperties>(properties) {
 
-		private val producer = connection.createChannel()
+		private val producer =
+			connection.createChannel()
+				// We must enable confirms as to not "cheat" on producer speed, otherwise all publishes
+				// happen asynchronously
+				.also { it.confirmSelect() }
 
 		override fun produce(destination: String, body: ByteArray, properties: RabbitMQProperties?) {
-			producer.basicPublish("", destination, null, body)
+			producer.basicPublish("", destination, MessageProperties.PERSISTENT_TEXT_PLAIN, body)
+			producer.waitForConfirms()
 		}
 
 		override fun getProducer(destination: String, properties: RabbitMQProperties?): Channel =
@@ -99,6 +102,7 @@ object RabbitMQ : BenchmarkDefiner {
 
 		override fun close() {
 			producer.close()
+			connection.close()
 		}
 	}
 
@@ -120,6 +124,11 @@ object RabbitMQ : BenchmarkDefiner {
 
 		private val adminConnection = connectionFactory.newConnection("admin")
 		private val adminChannel = adminConnection.createChannel()
+
+		override fun closeImpl() {
+			adminChannel.close()
+			adminConnection.close()
+		}
 
 		override fun createDestination(config: DestinationConfiguration) {
 			val exchangeName = config.topicName
@@ -159,10 +168,10 @@ object RabbitMQ : BenchmarkDefiner {
 			runDelayError(deleteQueues + deleteExchanges)
 		}
 
-		override fun createReceiverImpl(): RabbitMQReceiver =
+		override fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration?): RabbitMQReceiver =
 			RabbitMQReceiver(properties, connectionFactory.newConnection())
 
-		override fun createProducerImpl(): RabbitMQProducer =
+		override fun createProducerImpl(producerConfiguration: ProducerConfiguration?): RabbitMQProducer =
 			RabbitMQProducer(properties, connectionFactory.newConnection())
 
 	}

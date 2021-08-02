@@ -8,8 +8,13 @@ object ArgumentParser {
 		val client: String,
 		val consumers: Int,
 		val producers: Int,
-		val destinations: Int
-	)
+		val destinations: Int,
+		val messageSize: Int,
+		val messageCount: Int,
+	) {
+		override fun toString(): String =
+			"$client-${consumers}c-${producers}p-${destinations}d-${messageSize}b"
+	}
 
 	fun parse(args: Array<out String>): ParseResult {
 		val values = mutableMapOf<String, String>()
@@ -29,6 +34,8 @@ object ArgumentParser {
 			consumers = require(values, "consumers").toInt(),
 			producers = require(values, "producers").toInt(),
 			destinations = require(values, "destinations").toInt(),
+			messageSize = require(values, "size").toInt(),
+			messageCount = require(values, "count").toInt(),
 		)
 	}
 

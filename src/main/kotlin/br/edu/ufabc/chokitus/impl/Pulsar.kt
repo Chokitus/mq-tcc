@@ -2,6 +2,7 @@ package br.edu.ufabc.chokitus.impl
 
 import br.edu.ufabc.chokitus.benchmark.ClientFactory
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.DestinationConfiguration
+import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.BenchmarkDefiner
 import br.edu.ufabc.chokitus.mq.client.AbstractProducer
@@ -11,10 +12,10 @@ import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
-import java.util.UUID
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import kotlin.reflect.KClass
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.pulsar.client.admin.PulsarAdminException
 import org.apache.pulsar.client.api.Consumer
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.api.MessageId
@@ -27,6 +28,7 @@ object Pulsar : BenchmarkDefiner {
 
 	data class PulsarProperties(
 		val serviceURL: String,
+		val serviceHTTPURL: String,
 		val receiveTimeoutMs: Long
 	) : ClientProperties()
 
@@ -56,7 +58,6 @@ object Pulsar : BenchmarkDefiner {
 	) : AbstractReceiver<Consumer<ByteArray>, PulsarMessage, PulsarProperties>(properties) {
 
 		private val consumerByTopic: MutableMap<String, Consumer<ByteArray>> = mutableMapOf()
-		private val randomSubscriptionName = UUID.randomUUID().toString()
 
 		override fun close() {
 			consumerByTopic.values.closeAll()
@@ -77,7 +78,7 @@ object Pulsar : BenchmarkDefiner {
 				.let { receiver ->
 					receiver
 						.receive(this.properties.receiveTimeoutMs.toInt(), MILLISECONDS)
-						?.let { message -> PulsarMessage(message, receiver) }
+						?.let { PulsarMessage(it, receiver) }
 				}
 
 		override fun ackAll(messages: List<PulsarMessage>) {
@@ -156,16 +157,16 @@ object Pulsar : BenchmarkDefiner {
 
 		override fun start() {
 			client = PulsarClient.builder().serviceUrl(properties.serviceURL).build()
-			admin = PulsarAdmin.builder().serviceHttpUrl(properties.serviceURL).build()
+			admin = PulsarAdmin.builder().serviceHttpUrl(properties.serviceHTTPURL).build()
 		}
 
-		override fun createReceiverImpl(): PulsarReceiver =
+		override fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration?): PulsarReceiver =
 			PulsarReceiver(
 				properties,
 				client
 			)
 
-		override fun createProducerImpl(): PulsarProducer =
+		override fun createProducerImpl(producerConfiguration: ProducerConfiguration?): PulsarProducer =
 			PulsarProducer(
 				properties,
 				client
@@ -173,7 +174,16 @@ object Pulsar : BenchmarkDefiner {
 
 		private fun createTopicIfNotCreated(topic: String) {
 			topic.takeIf { !createdTopics.contains(it) }
-				?.let(admin.topics()::createNonPartitionedTopic)
+				?.let {
+					admin.topics()
+						.runCatching { createNonPartitionedTopic(it) }
+						.exceptionOrNull()
+						?.let {
+							if (it !is PulsarAdminException || !it.message!!.contains("already exists")) {
+								throw it
+							}
+						}
+				}
 			createdTopics.add(topic)
 		}
 

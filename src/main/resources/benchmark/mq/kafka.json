@@ -1,0 +1,4 @@
+{
+  "hosts": "kafka:9092",
+  "commitIntervalMs": 1000
+}

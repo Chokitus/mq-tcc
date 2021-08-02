@@ -1,11 +1,11 @@
-version: '2'
+version: '3.9'
 
 services:
-  mqtest-rabbitmq:
+  mq-test-rabbitmq:
     image: docker.io/bitnami/rabbitmq:latest
     environment:
-      - RABBITMQ_USERNAME=mqtest
-      - RABBITMQ_PASSWORD=mqtest
+      - RABBITMQ_USERNAME=mq-test
+      - RABBITMQ_PASSWORD=mq-test
 #      - RABBITMQ_LOAD_DEFINITIONS=true
     ports:
       - '4369:4369'

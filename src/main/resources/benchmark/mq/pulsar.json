@@ -1,0 +1,5 @@
+{
+  "serviceURL":  "pulsar://standalone:6650",
+  "serviceHTTPURL":  "http://standalone:8080",
+  "receiveTimeoutMs": 1000
+}

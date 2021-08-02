@@ -1,0 +1,276 @@
+{
+  "receiverConfigurations": [
+    {
+      "queueName": "single-queue",
+      "topicName": "single-queue",
+      "batchSize": 1
+    }
+  ],
+  "producerConfigurations": [
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    },
+    {
+      "destinationName": "single-queue",
+      "batchSize": 1
+    }
+  ],
+  "destinationConfigurations": [
+    {
+      "queueName": "single-queue",
+      "topicName": "single-queue",
+      "additionalInfo": {
+        "subscriberCount": 1
+      }
+    }
+  ]
+}

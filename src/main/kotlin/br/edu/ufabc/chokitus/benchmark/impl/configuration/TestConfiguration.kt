@@ -6,8 +6,6 @@ data class TestConfiguration(
 	val receiverConfigurations: List<ReceiverConfiguration>,
 	val producerConfigurations: List<ProducerConfiguration>,
 	val destinationConfigurations: List<DestinationConfiguration>,
-	val messageCount: Int,
-	val messageSize: Int,
 ) {
 	val receiverCount: Int
 		get() = receiverConfigurations.size

@@ -6,10 +6,11 @@ import br.edu.ufabc.chokitus.benchmark.ClientProducer
 import br.edu.ufabc.chokitus.benchmark.ClientReceiver
 import br.edu.ufabc.chokitus.benchmark.data.TestResult
 import br.edu.ufabc.chokitus.benchmark.data.TimedInterval
-import br.edu.ufabc.chokitus.benchmark.data.timing
+import br.edu.ufabc.chokitus.benchmark.data.timingFor
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.TestConfiguration
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.supplyAsync
 import java.util.concurrent.ExecutorService
@@ -18,7 +19,15 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.apache.commons.lang3.RandomStringUtils
 
-class SingleOpsBenchmark : AbstractBenchmark() {
+class SingleOpsBenchmark(
+	arguments: ArgumentParser.ParseResult,
+	messageSize: Int,
+	messageCount: Int
+) : AbstractBenchmark(
+	arguments = arguments,
+	messageSize = messageSize,
+	messageCount = messageCount,
+) {
 
 	private lateinit var testExecutor: ExecutorService
 
@@ -26,21 +35,24 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 
 	private val activeProducers = AtomicInteger(0)
 
+	private val printCount = 500
+
 	override fun doBenchmarkImpl(
 		configuration: TestConfiguration,
 		clientFactory: ClientFactory
 	): TestResult {
 		testStartTime = time()
-		defaultMessage = RandomStringUtils.random(configuration.messageSize)
+		defaultMessage = RandomStringUtils.randomAlphanumeric(messageSize)
 
 		val receiver: List<CompletableFuture<Pair<List<TimedInterval>, List<TimedInterval>>>> =
 			(0 until configuration.receiverCount).map {
 				supplyAsync(
 					{
 						log.info("Creating receiver $it out of ${configuration.receiverCount}...")
+						val receiverConfiguration = configuration.receiverConfigurations[it]
 						doReceiver(
-							receiver = clientFactory.createReceiver(),
-							receiverConfiguration = configuration.receiverConfigurations[it],
+							receiver = clientFactory.createReceiver(receiverConfiguration),
+							receiverConfiguration = receiverConfiguration,
 							receiverId = it
 						)
 					},
@@ -48,15 +60,17 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 				)
 			}
 
+		Thread.sleep(1000)
+
 		val producers: List<CompletableFuture<List<TimedInterval>>> =
 			(0 until configuration.producerCount).map {
 				supplyAsync(
 					{
 						log.info("Creating producer $it out of ${configuration.producerCount}...")
+						val producerConfiguration = configuration.producerConfigurations[it]
 						doProducer(
-							producer = clientFactory.createProducer(),
-							messageCount = configuration.messageCount,
-							producerConfiguration = configuration.producerConfigurations[it],
+							producer = clientFactory.createProducer(producerConfiguration),
+							producerConfiguration = producerConfiguration,
 							producerId = it
 						)
 					},
@@ -93,13 +107,12 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 		configuration: TestConfiguration,
 		clientFactory: ClientFactory
 	) {
-		runCatching {
+		run {
 			testExecutor.shutdown()
 			testExecutor.awaitTermination(60, TimeUnit.SECONDS)
 
-			clientFactory.cleanUpDestinations()
+//			clientFactory.cleanUpDestinations()
 		}
-			.getOrThrow()
 	}
 
 	private fun doReceiver(
@@ -111,17 +124,17 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 		val intervalWithTimestamp = ArrayList<TimedInterval>()
 
 		fun observe(receivedTime: Long, sentTime: Long, requestTime: Long) {
-			val timestamp = secondsFromStart(receivedTime)
+			val timestamp = timestamp(receivedTime)
 			val latency = receivedTime - sentTime
 			val receiveInterval = receivedTime - requestTime
-			latenciesWithTimestamp.add(timestamp timing latency)
-			intervalWithTimestamp.add(timestamp timing receiveInterval)
+			latenciesWithTimestamp.add(timestamp.timingFor(latency, receiverId))
+			intervalWithTimestamp.add(timestamp.timingFor(receiveInterval, receiverId))
 		}
 
-		log.info("$receiverId: Starting receiver...")
+		log.info("Receiver $receiverId: Starting receiver...")
 		receiver.use {
 			receiver.start()
-			log.info("$receiverId: Receiver started successfully! Will now proceed to test...")
+			log.info("Receiver $receiverId: Receiver started successfully! Will now proceed to test...")
 			var receivedAny = false
 			while (activeProducers.get() > 0 || receivedAny) {
 				val requestTime = time()
@@ -129,7 +142,7 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 				val receivedTime = time()
 				receivedAny = message != null
 				if (message != null) {
-					if (latenciesWithTimestamp.size % 50 == 0) {
+					if (latenciesWithTimestamp.size % printCount == 0) {
 						log.info("$receiverId: Received ${latenciesWithTimestamp.size} messages...")
 					}
 					val sentTime = message.bodyAsString().substring(defaultMessage.length).toLong()
@@ -138,22 +151,21 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 					message.ack()
 				}
 			}
-			log.info("$receiverId: All producers finished their work, stopping...")
+			log.info("Receiver $receiverId: All producers finished their work, stopping...")
 		}
 		return latenciesWithTimestamp to intervalWithTimestamp
 	}
 
 	private fun doProducer(
 		producer: ClientProducer,
-		messageCount: Int,
 		producerConfiguration: ProducerConfiguration,
 		producerId: Int
 	): ArrayList<TimedInterval> {
 		val requestIntervalsWithTimestamp = ArrayList<TimedInterval>()
 		fun observe(requestTime: Long, producedTime: Long) {
-			val timestamp = secondsFromStart(requestTime)
+			val timestamp = timestamp(requestTime)
 			val interval = producedTime - requestTime
-			requestIntervalsWithTimestamp.add(timestamp timing interval)
+			requestIntervalsWithTimestamp.add(timestamp.timingFor(interval, producerId))
 		}
 
 		log.info("$producerId: Starting receiver...")
@@ -161,7 +173,7 @@ class SingleOpsBenchmark : AbstractBenchmark() {
 			producer.start()
 			log.info("$producerId: Producer started successfully! Will now proceed to test...")
 			repeat(messageCount) {
-				if (it % 50 == 0) {
+				if (it % printCount == 0) {
 					log.info("$producerId: Produced $it messages...")
 				}
 				val requestTime = time()
