@@ -7,5 +7,6 @@ abstract class AbstractProducer<P : Any, M : AbstractMessage, Y : ClientProperti
 	protected val properties: Y
 ) : AutoCloseable, Startable {
 	abstract fun produce(destination: String, body: ByteArray, properties: Y? = null)
+	abstract fun produceBatch(destination: String, bodies: Iterable<ByteArray>, properties: Y? = null)
 	protected abstract fun getProducer(destination: String, properties: Y?): P
 }

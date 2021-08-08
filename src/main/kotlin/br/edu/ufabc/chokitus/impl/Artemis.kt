@@ -9,6 +9,7 @@ import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
@@ -68,17 +69,14 @@ object Artemis : BenchmarkDefiner {
 		override fun receiveBatch(
 			destination: String,
 			properties: ReceiverConfiguration
-		): List<ArtemisMessage> {
-			return listOf()
+		): MessageBatch<ArtemisMessage> {
+			return MessageBatch.empty()
 		}
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): ArtemisMessage? =
 			getReceiver(destination)
 				.receive(1000)
 				?.let(::ArtemisMessage)
-
-		override fun ackAll(messages: List<ArtemisMessage>): Unit =
-			messages.forEach { it.ack() }
 
 		override fun getReceiver(destination: String, properties: ArtemisProperties?): ClientConsumer =
 			receiverByQueue.getOrPut(destination) {
@@ -105,18 +103,30 @@ object Artemis : BenchmarkDefiner {
 		private val clientProducer = clientSession.createProducer()
 
 		override fun produce(destination: String, body: ByteArray, properties: ArtemisProperties?) {
-			val message = clientSession.createMessage(true).apply {
-				bodyBuffer.writeBytes(body)
-			}
-			clientProducer.send(destination, message)
+			clientProducer.send(destination, toMessage(body))
 			clientSession.commit()
 		}
+
+		private fun toMessage(body: ByteArray): ClientMessage =
+			clientSession.createMessage(true).apply {
+				bodyBuffer.writeBytes(body)
+			}
 
 		override fun getProducer(destination: String, properties: ArtemisProperties?): ClientProducer =
 			clientProducer
 
 		override fun close() {
 			clientProducer.close()
+		}
+
+		override fun produceBatch(
+			destination: String,
+			bodies: Iterable<ByteArray>,
+			properties: ArtemisProperties?
+		) {
+			bodies.map(::toMessage)
+				.forEach(clientProducer::send)
+			clientSession.commit()
 		}
 
 	}

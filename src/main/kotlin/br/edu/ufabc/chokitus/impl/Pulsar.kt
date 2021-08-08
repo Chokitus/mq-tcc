@@ -9,6 +9,7 @@ import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
@@ -66,11 +67,16 @@ object Pulsar : BenchmarkDefiner {
 		override fun receiveBatch(
 			destination: String,
 			properties: ReceiverConfiguration
-		): List<PulsarMessage> =
+		): MessageBatch<PulsarMessage> =
 			getReceiver(destination).let { receiver ->
 				receiver
 					.batchReceive()
 					.map { PulsarMessage(it, receiver) }
+					.let { msgs ->
+						MessageBatch(msgs) { toAck ->
+							receiver.acknowledge(toAck.map { it.messageId() })
+						}
+					}
 			}
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): PulsarMessage? =
@@ -80,14 +86,6 @@ object Pulsar : BenchmarkDefiner {
 						.receive(this.properties.receiveTimeoutMs.toInt(), MILLISECONDS)
 						?.let { PulsarMessage(it, receiver) }
 				}
-
-		override fun ackAll(messages: List<PulsarMessage>) {
-			messages
-				.groupBy { it.consumer }
-				.forEach { (consumer, messages) ->
-					consumer.acknowledge(messages.map { it.messageId() })
-				}
-		}
 
 		override fun getReceiver(topic: String, properties: PulsarProperties?): Consumer<ByteArray> =
 			consumerByTopic.getOrPut(topic) {
@@ -135,6 +133,18 @@ object Pulsar : BenchmarkDefiner {
 				}
 					.create()
 			}
+
+		override fun produceBatch(
+			destination: String,
+			bodies: Iterable<ByteArray>,
+			properties: PulsarProperties?
+		) {
+			getProducer(destination, properties)
+				.let { producer ->
+					bodies.map { producer.sendAsync(it) }
+				}
+				.forEach { it.get() }
+		}
 
 	}
 

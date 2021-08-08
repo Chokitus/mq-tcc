@@ -9,6 +9,7 @@ import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
 import com.rabbitmq.client.BuiltinExchangeType
@@ -63,17 +64,12 @@ object RabbitMQ : BenchmarkDefiner {
 		override fun receiveBatch(
 			destination: String,
 			properties: ReceiverConfiguration
-		): List<RabbitMQMessage> {
-
-			return listOf()
+		): MessageBatch<RabbitMQMessage> {
+			return MessageBatch.empty()
 		}
 
 		override fun getReceiver(destination: String, properties: RabbitMQProperties?): Channel =
 			receiver
-
-		override fun ackAll(messages: List<RabbitMQMessage>) {
-			TODO("Not yet implemented")
-		}
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): RabbitMQMessage? =
 			receiver
@@ -103,6 +99,17 @@ object RabbitMQ : BenchmarkDefiner {
 		override fun close() {
 			producer.close()
 			connection.close()
+		}
+
+		override fun produceBatch(
+			destination: String,
+			bodies: Iterable<ByteArray>,
+			properties: RabbitMQProperties?
+		) {
+			bodies.forEach {
+				producer.basicPublish("", destination, MessageProperties.PERSISTENT_TEXT_PLAIN, it)
+			}
+			producer.waitForConfirms()
 		}
 	}
 

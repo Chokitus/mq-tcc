@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.apache.commons.lang3.RandomStringUtils
 
-class SingleOpsBenchmark(
+class BatchOpsBenchmark(
 	arguments: ArgumentParser.ParseResult,
 	messageSize: Int,
 	messageCount: Int
@@ -138,18 +138,18 @@ class SingleOpsBenchmark(
 			var receivedAny = false
 			while (activeProducers.get() > 0 || receivedAny) {
 				val requestTime = time()
-				val message = receiver.receive(receiverConfiguration.queueName, receiverConfiguration)
+				val messages = receiver.receiveBatch(receiverConfiguration.queueName, receiverConfiguration)
 				val receivedTime = time()
-				receivedAny = message != null
-				if (message != null) {
+				receivedAny = messages.isNotEmpty()
+				for (message in messages) {
 					if (latenciesWithTimestamp.size % printCount == 0) {
 						log.info("$receiverId: Received ${latenciesWithTimestamp.size} messages...")
 					}
 					val sentTime = message.bodyAsString().substring(defaultMessage.length).toLong()
 
 					observe(receivedTime, sentTime, requestTime)
-					message.ack()
 				}
+				messages.ackAll()
 			}
 			log.info("Receiver $receiverId: All producers finished their work, stopping...")
 		}

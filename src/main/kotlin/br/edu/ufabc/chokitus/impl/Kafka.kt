@@ -9,6 +9,7 @@ import br.edu.ufabc.chokitus.mq.client.AbstractProducer
 import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 import java.time.Duration
 import java.util.Optional
@@ -66,7 +67,7 @@ object Kafka : BenchmarkDefiner {
 		override fun receiveBatch(
 			destination: String,
 			properties: ReceiverConfiguration
-		): List<KafkaMessage> =
+		): MessageBatch<KafkaMessage> =
 			getReceiver(destination, this.properties)
 				.poll(Duration.ofMillis(1000))
 				.map { msg ->
@@ -78,6 +79,7 @@ object Kafka : BenchmarkDefiner {
 						)
 					}
 				}
+				.let(::MessageBatch)
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): KafkaMessage? =
 			getReceiver(destination, this.properties)
@@ -97,10 +99,6 @@ object Kafka : BenchmarkDefiner {
 
 		override fun close() {
 			kafkaConsumer.close()
-		}
-
-		override fun ackAll(messages: List<KafkaMessage>) {
-			messages.forEach { it.ack() }
 		}
 
 		override fun getReceiver(
@@ -144,6 +142,14 @@ object Kafka : BenchmarkDefiner {
 
 		override fun close() {
 			kafkaProducer.close()
+		}
+
+		override fun produceBatch(
+			destination: String,
+			bodies: Iterable<ByteArray>,
+			properties: KafkaProperties?
+		) {
+			TODO("Not yet implemented")
 		}
 
 	}

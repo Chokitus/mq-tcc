@@ -2,6 +2,7 @@ package br.edu.ufabc.chokitus.mq.client
 
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
+import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
 
 abstract class AbstractReceiver<R : Any, M : AbstractMessage, Y : ClientProperties>(
@@ -18,7 +19,7 @@ abstract class AbstractReceiver<R : Any, M : AbstractMessage, Y : ClientProperti
 	 * @param properties Y?
 	 * @return List<M>
 	 */
-	abstract fun receiveBatch(destination: String, properties: ReceiverConfiguration): List<M>
+	abstract fun receiveBatch(destination: String, properties: ReceiverConfiguration): MessageBatch<M>
 
 	/**
 	 * Should receive a single message, or null if no message was available
@@ -29,12 +30,5 @@ abstract class AbstractReceiver<R : Any, M : AbstractMessage, Y : ClientProperti
 	 */
 	abstract fun receive(destination: String, properties: ReceiverConfiguration): M?
 
-	/**
-	 * Should ack all messages in batch.
-	 *
-	 * @param messages List<M>
-	 * @return Unit
-	 */
-	abstract fun ackAll(messages: List<M>): Unit
 	protected abstract fun getReceiver(destination: String, properties: Y? = null): R
 }
