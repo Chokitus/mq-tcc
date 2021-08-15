@@ -1,7 +1,5 @@
 package br.edu.ufabc.chokitus.util
 
-import java.lang.IllegalArgumentException
-
 object ArgumentParser {
 
 	data class ParseResult(
@@ -11,9 +9,19 @@ object ArgumentParser {
 		val destinations: Int,
 		val messageSize: Int,
 		val messageCount: Int,
+		val benchmark: String,
+		val batchSize: Int
 	) {
+
+		fun type() =
+			"batch".takeIf { benchmark.equals("batch", true) }
+				?: "single"
+
+		fun isBatch() =
+			type() == "batch"
+
 		override fun toString(): String =
-			"$client-${consumers}c-${producers}p-${destinations}d-${messageSize}b"
+			"$client-${type()}-${consumers}c-${producers}p-${destinations}d-${messageSize}b"
 	}
 
 	fun parse(args: Array<out String>): ParseResult {
@@ -30,17 +38,22 @@ object ArgumentParser {
 		}
 
 		return ParseResult(
-			client = require(values, "client"),
-			consumers = require(values, "consumers").toInt(),
-			producers = require(values, "producers").toInt(),
-			destinations = require(values, "destinations").toInt(),
-			messageSize = require(values, "size").toInt(),
-			messageCount = require(values, "count").toInt(),
+			client = require(values, "client", "cli"),
+			consumers = require(values, "consumers", "c").toInt(),
+			producers = require(values, "producers", "p").toInt(),
+			destinations = require(values, "destinations", "d").toInt(),
+			messageSize = require(values, "size", "s").toInt(),
+			messageCount = require(values, "count", "ct").toInt(),
+			benchmark = require(values, "benchmark", "b"),
+			batchSize = require(values, "bs").toInt(),
 		)
 	}
 
-	private fun require(map: Map<String, String>, value: String): String =
+	private fun require(map: Map<String, String>, value: String, alt: String = ""): String =
 		map[value]
-			?: throw IllegalArgumentException("--$value option is required.")
+			?: map[alt]
+			?: throw IllegalArgumentException(
+				"--$value${" or --$alt".takeIf { alt.isNotEmpty() } ?: ""} option is required."
+			)
 
 }

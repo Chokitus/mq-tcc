@@ -2,23 +2,19 @@
   "receiverConfigurations": [
     {
       "queueName": "queue-1",
-      "topicName": "queue-1",
-      "batchSize": 1
+      "topicName": "queue-1"
     },
     {
       "queueName": "queue-2",
-      "topicName": "queue-2",
-      "batchSize": 1
+      "topicName": "queue-2"
     }
   ],
   "producerConfigurations": [
     {
-      "destinationName": "queue-1",
-      "batchSize": 1
+      "destinationName": "queue-1"
     },
     {
-      "destinationName": "queue-2",
-      "batchSize": 1
+      "destinationName": "queue-2"
     }
   ],
   "destinationConfigurations": [

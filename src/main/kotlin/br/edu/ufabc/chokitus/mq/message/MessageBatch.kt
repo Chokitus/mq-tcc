@@ -4,7 +4,7 @@ class MessageBatch<M : AbstractMessage>(
 	val messages: List<M>,
 	private val ackFn: (List<M>) -> Unit = {}
 ) : Iterable<M> {
-	fun ackAll(): Unit = ackFn(messages)
+	fun ackAll(): Unit = if (messages.isNotEmpty()) ackFn(messages) else Unit
 	fun isNotEmpty() = messages.isNotEmpty()
 
 	override fun iterator(): Iterator<M> = messages.iterator()

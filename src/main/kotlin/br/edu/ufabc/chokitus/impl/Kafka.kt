@@ -11,9 +11,11 @@ import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import java.time.Duration
 import java.util.Optional
 import java.util.Properties
+import java.util.concurrent.ExecutionException
 import kotlin.math.max
 import kotlin.reflect.KClass
 import org.apache.kafka.clients.admin.AdminClient
@@ -25,6 +27,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.errors.TopicExistsException
 import org.slf4j.LoggerFactory
 import org.apache.kafka.clients.producer.KafkaProducer as TrueKafkaProducer
 
@@ -149,15 +152,21 @@ object Kafka : BenchmarkDefiner {
 			bodies: Iterable<ByteArray>,
 			properties: KafkaProperties?
 		) {
-			TODO("Not yet implemented")
+			val producer = getProducer(destination, this.properties)
+			bodies.map {
+				producer.send(ProducerRecord(destination, null, it))
+			}
+				.forEach { it.get() }
 		}
 
 	}
 
 	class KafkaClientFactory(
-		properties: KafkaProperties
+		properties: KafkaProperties,
+		arguments: ArgumentParser.ParseResult
 	) : AbstractClientFactory<KafkaReceiver, KafkaProducer, KafkaProperties>(
-		properties
+		properties,
+		arguments
 	) {
 
 		private val byteArrayDes = "org.apache.kafka.common.serialization.ByteArrayDeserializer"
@@ -183,7 +192,7 @@ object Kafka : BenchmarkDefiner {
 					put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, byteArrayDes)
 					put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
 					put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-					put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, it.batchSize)
+					put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50)
 				}
 			}
 				.let { KafkaConsumer<String, ByteArray>(it) }
@@ -215,8 +224,18 @@ object Kafka : BenchmarkDefiner {
 				Optional.empty()
 			)
 				.also { createdTopics.add(it.name()) }
-				.let { adminClient.createTopics(listOf(it)) }
-				.also { it.all().get() }
+				.let {
+					runCatching {
+						adminClient.createTopics(listOf(it))
+							.all().get()
+					}
+						.onFailure {
+							if (it is ExecutionException && it.cause !is TopicExistsException) {
+								throw it
+							}
+						}
+
+				}
 		}
 
 		override fun cleanUpDestinations() {
@@ -238,8 +257,8 @@ object Kafka : BenchmarkDefiner {
 			value?.let(remapValue) ?: defaultValue()
 		}
 
-	override fun clientFactory(): (ClientProperties) -> ClientFactory =
-		{ KafkaClientFactory(it as KafkaProperties) }
+	override fun clientFactory(): (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory =
+		{ props, args -> KafkaClientFactory(props as KafkaProperties, args) }
 
 	override fun clientProperties(): KClass<out ClientProperties> =
 		KafkaProperties::class

@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory
  * @param T The benchmark's configuration
  */
 abstract class AbstractBenchmark(
-	private val arguments: ArgumentParser.ParseResult,
+	protected val arguments: ArgumentParser.ParseResult,
 	val messageSize: Int,
 	val messageCount: Int
 ) {

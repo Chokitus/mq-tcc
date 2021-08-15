@@ -11,13 +11,17 @@ import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
+import com.rabbitmq.client.AMQP
 import com.rabbitmq.client.BuiltinExchangeType
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.Connection
 import com.rabbitmq.client.ConnectionFactory
-import com.rabbitmq.client.GetResponse
+import com.rabbitmq.client.DefaultConsumer
+import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.MessageProperties
+import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.reflect.KClass
 
 object RabbitMQ : BenchmarkDefiner {
@@ -32,29 +36,40 @@ object RabbitMQ : BenchmarkDefiner {
 	) : ClientProperties()
 
 	class RabbitMQMessage(
-		private val getResponse: GetResponse,
-		private val ack: (GetResponse) -> Unit = {},
-		private val nack: (GetResponse) -> Unit = {},
+		private val messageBody: ByteArray,
+		val envelope: Envelope,
+		private val ack: (Envelope) -> Unit = {},
+		private val nack: (Envelope) -> Unit = {},
 	) : AbstractMessage() {
 
-		override fun body(): ByteArray = getResponse.body
+		override fun body(): ByteArray = messageBody
 
-		override fun ack() = ack(getResponse)
-		override fun nack() = nack(getResponse)
+		override fun ack() = ack(envelope)
+		override fun nack() = nack(envelope)
 	}
 
 	class RabbitMQReceiver(
 		properties: RabbitMQProperties,
+		private val arguments: ArgumentParser.ParseResult,
 		private val connection: Connection
 	) : AbstractReceiver<Channel, RabbitMQMessage, RabbitMQProperties>(properties) {
 
-		private val receiver = connection.createChannel()
+		private val internalQueue = ConcurrentLinkedDeque<RabbitMQMessage>()
 
-		private val ackFunction: (GetResponse) -> Unit =
-			{ receiver.basicAck(it.envelope.deliveryTag, false) }
+		var initialized: Boolean = false
 
-		private val nackFunction: (GetResponse) -> Unit =
-			{ receiver.basicNack(it.envelope.deliveryTag, false, true) }
+		private val receiver = connection.createChannel().apply {
+			basicQos(arguments.batchSize, false)
+		}
+
+		private val ackFunction: (Envelope) -> Unit =
+			{ receiver.basicAck(it.deliveryTag, false) }
+
+		private val multiAck: (Envelope) -> Unit =
+			{ receiver.basicAck(it.deliveryTag, true) }
+
+		private val nackFunction: (Envelope) -> Unit =
+			{ receiver.basicNack(it.deliveryTag, false, true) }
 
 		override fun close() {
 			receiver.close()
@@ -65,7 +80,44 @@ object RabbitMQ : BenchmarkDefiner {
 			destination: String,
 			properties: ReceiverConfiguration
 		): MessageBatch<RabbitMQMessage> {
-			return MessageBatch.empty()
+			if (!initialized) {
+				initialize(destination)
+			}
+
+			val messages = mutableListOf<RabbitMQMessage>()
+
+			while (messages.size < arguments.batchSize) {
+				val msg = internalQueue.poll() ?: break
+				messages.add(msg)
+			}
+
+			return MessageBatch(messages) { msgs ->
+				multiAck(msgs.maxByOrNull { it.envelope.deliveryTag }!!.envelope)
+			}
+		}
+
+		private fun initialize(destination: String) {
+			receiver.basicConsume(
+				destination,
+				object : DefaultConsumer(receiver) {
+					override fun handleDelivery(
+						consumerTag: String,
+						envelope: Envelope,
+						properties: AMQP.BasicProperties,
+						body: ByteArray
+					) {
+						internalQueue.add(
+							RabbitMQMessage(
+								messageBody = body,
+								envelope = envelope,
+								ack = multiAck,
+								nack = nackFunction
+							)
+						)
+					}
+				}
+			)
+			initialized = true
 		}
 
 		override fun getReceiver(destination: String, properties: RabbitMQProperties?): Channel =
@@ -74,7 +126,7 @@ object RabbitMQ : BenchmarkDefiner {
 		override fun receive(destination: String, properties: ReceiverConfiguration): RabbitMQMessage? =
 			receiver
 				.basicGet(destination, this.properties.autoAck ?: false) // Nullable
-				?.let { RabbitMQMessage(it, ackFunction, nackFunction) }
+				?.let { RabbitMQMessage(it.body, it.envelope, ackFunction, nackFunction) }
 	}
 
 	class RabbitMQProducer(
@@ -114,8 +166,12 @@ object RabbitMQ : BenchmarkDefiner {
 	}
 
 	class RabbitMQClientFactory(
-		properties: RabbitMQProperties
-	) : AbstractClientFactory<RabbitMQReceiver, RabbitMQProducer, RabbitMQProperties>(properties) {
+		properties: RabbitMQProperties,
+		arguments: ArgumentParser.ParseResult
+	) : AbstractClientFactory<RabbitMQReceiver, RabbitMQProducer, RabbitMQProperties>(
+		properties,
+		arguments
+	) {
 
 		private val declaredExchanges: MutableSet<String> = mutableSetOf()
 		private val declaredQueues: MutableSet<String> = mutableSetOf()
@@ -176,15 +232,15 @@ object RabbitMQ : BenchmarkDefiner {
 		}
 
 		override fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration?): RabbitMQReceiver =
-			RabbitMQReceiver(properties, connectionFactory.newConnection())
+			RabbitMQReceiver(properties, arguments, connectionFactory.newConnection())
 
 		override fun createProducerImpl(producerConfiguration: ProducerConfiguration?): RabbitMQProducer =
 			RabbitMQProducer(properties, connectionFactory.newConnection())
 
 	}
 
-	override fun clientFactory(): (ClientProperties) -> ClientFactory =
-		{ RabbitMQClientFactory(it as RabbitMQProperties) }
+	override fun clientFactory(): (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory =
+		{ props, args -> RabbitMQClientFactory(props as RabbitMQProperties, args) }
 
 	override fun clientProperties(): KClass<out ClientProperties> = RabbitMQProperties::class
 }

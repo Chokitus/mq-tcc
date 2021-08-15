@@ -2,31 +2,25 @@
   "receiverConfigurations": [
     {
       "queueName": "single-queue",
-      "topicName": "single-queue",
-      "batchSize": 1
+      "topicName": "single-queue"
     },
     {
       "queueName": "single-queue",
-      "topicName": "single-queue",
-      "batchSize": 1
+      "topicName": "single-queue"
     }
   ],
   "producerConfigurations": [
     {
-      "destinationName": "single-queue",
-      "batchSize": 1
+      "destinationName": "single-queue"
     },
     {
-      "destinationName": "single-queue",
-      "batchSize": 1
+      "destinationName": "single-queue"
     },
     {
-      "destinationName": "single-queue",
-      "batchSize": 1
+      "destinationName": "single-queue"
     },
     {
-      "destinationName": "single-queue",
-      "batchSize": 1
+      "destinationName": "single-queue"
     }
   ],
   "destinationConfigurations": [

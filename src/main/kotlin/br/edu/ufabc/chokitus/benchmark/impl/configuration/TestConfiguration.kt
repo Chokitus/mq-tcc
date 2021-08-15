@@ -17,7 +17,6 @@ data class TestConfiguration(
 data class ReceiverConfiguration(
 	val queueName: String,
 	val topicName: String?,
-	val batchSize: Int = 1
 )
 
 data class ProducerConfiguration(

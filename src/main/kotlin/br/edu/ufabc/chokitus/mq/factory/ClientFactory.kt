@@ -8,6 +8,7 @@ import br.edu.ufabc.chokitus.mq.client.AbstractReceiver
 import br.edu.ufabc.chokitus.mq.client.Startable
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import java.io.Closeable
 import java.util.LinkedList
 
@@ -26,7 +27,8 @@ abstract class AbstractClientFactory<
 		P : AbstractProducer<*, out AbstractMessage, Y>,
 		Y : ClientProperties
 		>(
-	protected val properties: Y
+	protected val properties: Y,
+	protected val arguments: ArgumentParser.ParseResult
 ) : AutoCloseable, Startable {
 
 	private val receivers: MutableList<R> = LinkedList()
@@ -45,7 +47,6 @@ abstract class AbstractClientFactory<
 	protected abstract fun createProducerImpl(producerConfiguration: ProducerConfiguration? = null): P
 
 	override fun close() {
-		//		(receivers + producers).closeAll()
 		closeImpl()
 	}
 

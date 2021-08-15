@@ -172,17 +172,22 @@ class BatchOpsBenchmark(
 		producer.use {
 			producer.start()
 			log.info("$producerId: Producer started successfully! Will now proceed to test...")
-			repeat(messageCount) {
-				if (it % printCount == 0) {
-					log.info("$producerId: Produced $it messages...")
+			(1..messageCount).chunked(arguments.batchSize) {
+				if (requestIntervalsWithTimestamp.size % (printCount / arguments.batchSize) == 0) {
+					log.info(
+						"$producerId: Produced ${
+							requestIntervalsWithTimestamp.size * arguments.batchSize
+						} messages..."
+					)
 				}
 				val requestTime = time()
-				producer.produce(
+				producer.produceBatch(
 					producerConfiguration.destinationName,
-					"$defaultMessage${time()}".encodeToByteArray()
+					it.map { "$defaultMessage${time()}".encodeToByteArray() }
 				)
 				val producedTime = time()
 				observe(requestTime, producedTime)
+
 			}
 			activeProducers.decrementAndGet()
 		}

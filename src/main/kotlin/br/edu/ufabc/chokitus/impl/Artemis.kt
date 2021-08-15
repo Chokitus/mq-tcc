@@ -11,8 +11,10 @@ import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
+import java.util.LinkedList
 import kotlin.reflect.KClass
 import org.apache.activemq.artemis.api.core.ActiveMQQueueExistsException
 import org.apache.activemq.artemis.api.core.QueueConfiguration
@@ -36,7 +38,8 @@ object Artemis : BenchmarkDefiner {
 	) : ClientProperties()
 
 	class ArtemisMessage(
-		private val message: ClientMessage
+		private val message: ClientMessage,
+		private val afterFn: () -> Unit = {}
 	) : AbstractMessage() {
 
 		override fun body(): ByteArray =
@@ -44,6 +47,7 @@ object Artemis : BenchmarkDefiner {
 
 		override fun ack() {
 			message.acknowledge()
+			afterFn()
 		}
 
 		override fun nack() {
@@ -70,13 +74,38 @@ object Artemis : BenchmarkDefiner {
 			destination: String,
 			properties: ReceiverConfiguration
 		): MessageBatch<ArtemisMessage> {
-			return MessageBatch.empty()
+			val receiver = getReceiver(destination)
+			val initialMessage = receiver.receive(1000L)
+			val messages = LinkedList<ArtemisMessage>()
+			tailrec fun receive(
+				message: ClientMessage?
+			): MutableList<ArtemisMessage> =
+				if (message == null) {
+					messages
+				} else {
+					messages.add(ArtemisMessage(message))
+					if (messages.size >= 100) {
+						messages
+					} else {
+						receive(receiver.receiveImmediate())
+					}
+				}
+
+			receive(initialMessage)
+
+			return MessageBatch(messages) {
+				it.last().ack()
+				clientSession.commit()
+			}
 		}
 
 		override fun receive(destination: String, properties: ReceiverConfiguration): ArtemisMessage? =
 			getReceiver(destination)
-				.receive(1000)
-				?.let(::ArtemisMessage)
+				.let { receiver ->
+					receiver
+						.receive(1000)
+						?.let { ArtemisMessage(it) { clientSession.commit() } }
+				}
 
 		override fun getReceiver(destination: String, properties: ArtemisProperties?): ClientConsumer =
 			receiverByQueue.getOrPut(destination) {
@@ -125,16 +154,18 @@ object Artemis : BenchmarkDefiner {
 			properties: ArtemisProperties?
 		) {
 			bodies.map(::toMessage)
-				.forEach(clientProducer::send)
+				.forEach { clientProducer.send(destination, it) }
 			clientSession.commit()
 		}
 
 	}
 
 	class ArtemisClientFactory(
-		properties: ArtemisProperties
+		properties: ArtemisProperties,
+		arguments: ArgumentParser.ParseResult
 	) : AbstractClientFactory<ArtemisReceiver, ArtemisProducer, ArtemisProperties>(
-		properties
+		properties,
+		arguments
 	) {
 
 		private lateinit var clientFactory: ClientSessionFactory
@@ -219,15 +250,15 @@ object Artemis : BenchmarkDefiner {
 				properties.password,
 				false,
 				false,
-				true,
+				false,
 				false,
 				properties.ackBatchSize
 			)
 
 	}
 
-	override fun clientFactory(): (ClientProperties) -> ClientFactory =
-		{ ArtemisClientFactory(it as ArtemisProperties) }
+	override fun clientFactory(): (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory =
+		{ props, args -> ArtemisClientFactory(props as ArtemisProperties, args) }
 
 	override fun clientProperties(): KClass<out ClientProperties> = ArtemisProperties::class
 

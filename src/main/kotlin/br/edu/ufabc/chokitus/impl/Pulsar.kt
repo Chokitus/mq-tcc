@@ -11,12 +11,14 @@ import br.edu.ufabc.chokitus.mq.factory.AbstractClientFactory
 import br.edu.ufabc.chokitus.mq.message.AbstractMessage
 import br.edu.ufabc.chokitus.mq.message.MessageBatch
 import br.edu.ufabc.chokitus.mq.properties.ClientProperties
+import br.edu.ufabc.chokitus.util.ArgumentParser
 import br.edu.ufabc.chokitus.util.Extensions.closeAll
 import br.edu.ufabc.chokitus.util.Extensions.runDelayError
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import kotlin.reflect.KClass
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.admin.PulsarAdminException
+import org.apache.pulsar.client.api.BatchReceivePolicy
 import org.apache.pulsar.client.api.Consumer
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.api.MessageId
@@ -97,6 +99,19 @@ object Pulsar : BenchmarkDefiner {
 
 					// Round-robin distribution within this Subscription
 					subscriptionType(SubscriptionType.Shared)
+
+					// No max amount of messages, but limited to 10 MB
+					BatchReceivePolicy
+						.builder()
+						.apply {
+							maxNumBytes(-1)
+							maxNumMessages(10)
+							timeout(1000, MILLISECONDS)
+						}
+						.let {
+							batchReceivePolicy(it.build())
+						}
+
 				}
 					.subscribe()
 			}
@@ -149,8 +164,12 @@ object Pulsar : BenchmarkDefiner {
 	}
 
 	class PulsarClientFactory(
-		properties: PulsarProperties
-	) : AbstractClientFactory<PulsarReceiver, PulsarProducer, PulsarProperties>(properties) {
+		properties: PulsarProperties,
+		arguments: ArgumentParser.ParseResult
+	) : AbstractClientFactory<PulsarReceiver, PulsarProducer, PulsarProperties>(
+		properties,
+		arguments
+	) {
 
 		private lateinit var client: PulsarClient
 		private lateinit var admin: PulsarAdmin
@@ -202,8 +221,8 @@ object Pulsar : BenchmarkDefiner {
 		}
 	}
 
-	override fun clientFactory(): (ClientProperties) -> ClientFactory =
-		{ PulsarClientFactory(it as PulsarProperties) }
+	override fun clientFactory(): (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory =
+		{ props, args -> PulsarClientFactory(props as PulsarProperties, args) }
 
 	override fun clientProperties(): KClass<out ClientProperties> = PulsarProperties::class
 
