@@ -21,7 +21,9 @@ import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.DefaultConsumer
 import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.MessageProperties
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.TimeUnit
 import kotlin.reflect.KClass
 
 object RabbitMQ : BenchmarkDefiner {
@@ -55,6 +57,7 @@ object RabbitMQ : BenchmarkDefiner {
 	) : AbstractReceiver<Channel, RabbitMQMessage, RabbitMQProperties>(properties) {
 
 		private val internalQueue = ConcurrentLinkedDeque<RabbitMQMessage>()
+		private val blockingQueue = ArrayBlockingQueue<RabbitMQMessage>(1)
 
 		var initialized: Boolean = false
 
@@ -81,7 +84,7 @@ object RabbitMQ : BenchmarkDefiner {
 			properties: ReceiverConfiguration
 		): MessageBatch<RabbitMQMessage> {
 			if (!initialized) {
-				initialize(destination)
+				initializeBatch(destination)
 			}
 
 			val messages = mutableListOf<RabbitMQMessage>()
@@ -96,7 +99,7 @@ object RabbitMQ : BenchmarkDefiner {
 			}
 		}
 
-		private fun initialize(destination: String) {
+		private fun initializeBatch(destination: String) {
 			receiver.basicConsume(
 				destination,
 				object : DefaultConsumer(receiver) {
@@ -120,13 +123,39 @@ object RabbitMQ : BenchmarkDefiner {
 			initialized = true
 		}
 
+		private fun initializeSingle(destination: String) {
+			receiver.basicConsume(
+				destination,
+				object : DefaultConsumer(receiver) {
+					override fun handleDelivery(
+						consumerTag: String,
+						envelope: Envelope,
+						properties: AMQP.BasicProperties,
+						body: ByteArray
+					) {
+						blockingQueue.add(
+							RabbitMQMessage(
+								messageBody = body,
+								envelope = envelope,
+								ack = ackFunction,
+								nack = nackFunction
+							)
+						)
+					}
+				}
+			)
+			initialized = true
+		}
+
 		override fun getReceiver(destination: String, properties: RabbitMQProperties?): Channel =
 			receiver
 
-		override fun receive(destination: String, properties: ReceiverConfiguration): RabbitMQMessage? =
-			receiver
-				.basicGet(destination, this.properties.autoAck ?: false) // Nullable
-				?.let { RabbitMQMessage(it.body, it.envelope, ackFunction, nackFunction) }
+		override fun receive(destination: String, properties: ReceiverConfiguration): RabbitMQMessage? {
+			if (!initialized) {
+				initializeSingle(destination)
+			}
+			return blockingQueue.poll(1, TimeUnit.SECONDS)
+		}
 	}
 
 	class RabbitMQProducer(

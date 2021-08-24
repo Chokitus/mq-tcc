@@ -1,0 +1,29 @@
+{
+  "receiverConfigurations": [
+    {
+      "queueName": "single-queue",
+      "topicName": "single-queue"
+    },
+    {
+      "queueName": "single-queue",
+      "topicName": "single-queue"
+    }
+  ],
+  "producerConfigurations": [
+    {
+      "destinationName": "single-queue"
+    },
+    {
+      "destinationName": "single-queue"
+    }
+  ],
+  "destinationConfigurations": [
+    {
+      "queueName": "single-queue",
+      "topicName": "single-queue",
+      "additionalInfo": {
+        "subscriberCount": 1
+      }
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import kotlin.io.path.bufferedWriter
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.math.abs
+import kotlin.math.round
 import kotlin.math.sqrt
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -148,10 +149,52 @@ abstract class AbstractBenchmark(
 		writer: BufferedWriter,
 		receiveResults: List<FinalResult>
 	) {
-		writer.write("Timestamp;Maximo;Minimo;Media;Desvio Padrao;Fator de balanceamento;Quantidade")
+		val client = arguments.client
+		val producer = arguments.producers
+		val consumer = arguments.consumers
+		val messageSize = arguments.messageSize
+		val benchmark = arguments.benchmark
+		val destinations = arguments.destinations
+
+		val maxTimestamp = receiveResults.maxOf { it.timestamp }.toDouble()
+
+		writer.write(
+			"timestamp;" +
+					"normal_timestamp;" +
+					"client;" +
+					"producers;" +
+					"consumers;" +
+					"message_size;" +
+					"benchmark;" +
+					"destinations;" +
+					"max_latency;" +
+					"min_latency;" +
+					"avg_latency;" +
+					"latency_std;" +
+					"balance;" +
+					"quantity"
+		)
 		writer.newLine()
 		receiveResults.forEachRun {
-			writer.write("$timestamp;$max;$min;$avg;$std;$load;$count".replace('.', ','))
+			writer.write(
+				(
+						"" +
+								"$timestamp;" +
+								"${timestamp / maxTimestamp};" +
+								"$client;" +
+								"$producer;" +
+								"$consumer;" +
+								"$messageSize;" +
+								"$benchmark;" +
+								"$destinations;" +
+								"$max;" +
+								"$min;" +
+								"$avg;" +
+								"$std;" +
+								"$load;" +
+								"$count"
+						).replace('.', ',')
+			)
 			writer.newLine()
 		}
 	}

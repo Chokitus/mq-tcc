@@ -14,7 +14,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kotlin.code.style>official</kotlin.code.style>
-        <kotlin.compiler.jvmTarget>15</kotlin.compiler.jvmTarget>
+        <kotlin.compiler.jvmTarget>13</kotlin.compiler.jvmTarget>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
         <kotlin.version>1.5.21</kotlin.version>
     </properties>
@@ -105,6 +105,30 @@
     </build>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.jetbrains.lets-plot</groupId>
+            <artifactId>lets-plot-kotlin-jvm</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jetbrains.lets-plot</groupId>
+            <artifactId>lets-plot-batik</artifactId>
+            <version>2.0.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>eu.hansolo.fx</groupId>
+            <artifactId>charts</artifactId>
+            <version>16.0.12</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.holgerbrandl</groupId>
+            <artifactId>krangl</artifactId>
+            <version>0.17</version>
+        </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>

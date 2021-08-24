@@ -192,7 +192,7 @@ object Kafka : BenchmarkDefiner {
 					put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, byteArrayDes)
 					put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
 					put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-					put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50)
+					put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, arguments.batchSize)
 				}
 			}
 				.let { KafkaConsumer<String, ByteArray>(it) }

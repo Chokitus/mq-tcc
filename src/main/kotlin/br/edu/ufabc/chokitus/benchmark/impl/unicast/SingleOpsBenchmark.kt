@@ -11,6 +11,7 @@ import br.edu.ufabc.chokitus.benchmark.impl.configuration.ProducerConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.ReceiverConfiguration
 import br.edu.ufabc.chokitus.benchmark.impl.configuration.TestConfiguration
 import br.edu.ufabc.chokitus.util.ArgumentParser
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.supplyAsync
 import java.util.concurrent.ExecutorService
@@ -35,7 +36,7 @@ class SingleOpsBenchmark(
 
 	private val activeProducers = AtomicInteger(0)
 
-	private val printCount = 500
+	private val printCount = 2000
 
 	override fun doBenchmarkImpl(
 		configuration: TestConfiguration,
@@ -136,7 +137,12 @@ class SingleOpsBenchmark(
 			receiver.start()
 			log.info("Receiver $receiverId: Receiver started successfully! Will now proceed to test...")
 			var receivedAny = false
-			while (activeProducers.get() > 0 || receivedAny) {
+			val receiverStartTime = time()
+			val maxDuration = Duration.ofSeconds(120).toNanos()
+			while (
+				(activeProducers.get() > 0 || receivedAny) &&
+				time() - receiverStartTime <= maxDuration
+			) {
 				val requestTime = time()
 				val message = receiver.receive(receiverConfiguration.queueName, receiverConfiguration)
 				val receivedTime = time()
@@ -172,9 +178,14 @@ class SingleOpsBenchmark(
 		producer.use {
 			producer.start()
 			log.info("$producerId: Producer started successfully! Will now proceed to test...")
-			repeat(messageCount) {
-				if (it % printCount == 0) {
-					log.info("$producerId: Produced $it messages...")
+			val maxDuration = Duration.ofSeconds(120).toNanos()
+			val producerStartTime = time()
+			for(i in 1..messageCount) {
+				if (time() - producerStartTime >= maxDuration) {
+					break
+				}
+				if (i % printCount == 0) {
+					log.info("$producerId: Produced $i messages...")
 				}
 				val requestTime = time()
 				producer.produce(

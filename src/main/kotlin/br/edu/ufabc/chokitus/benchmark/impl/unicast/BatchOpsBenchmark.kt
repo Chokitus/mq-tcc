@@ -35,7 +35,7 @@ class BatchOpsBenchmark(
 
 	private val activeProducers = AtomicInteger(0)
 
-	private val printCount = 500
+	private val printCount = 2000
 
 	override fun doBenchmarkImpl(
 		configuration: TestConfiguration,
