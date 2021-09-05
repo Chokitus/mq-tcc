@@ -17,7 +17,6 @@ import kotlin.io.path.bufferedWriter
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.math.abs
-import kotlin.math.round
 import kotlin.math.sqrt
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -205,10 +204,16 @@ abstract class AbstractBenchmark(
 			.map { (timestamp, entries) ->
 				val intervals = entries.map { (it.interval.toDouble() / NANO_TO_MILLI).precision() }
 
+				/**
+				 * How many each consumer processed
+				 */
 				val count = entries
 					.groupBy { it.classification }
 					.mapValues { it.value.size }
 
+				/**
+				 * Max value should be
+				 */
 				val maxValue = ((actors - 1.0) * 2.0 / actors).takeIf { it > 0 } ?: 1.0
 				val average = intervals.size.toDouble() / actors
 

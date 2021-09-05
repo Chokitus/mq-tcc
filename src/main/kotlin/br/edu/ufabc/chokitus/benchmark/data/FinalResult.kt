@@ -1,7 +1,5 @@
 package br.edu.ufabc.chokitus.benchmark.data
 
-import java.math.BigDecimal
-
 class FinalResult(
 	val timestamp: Long,
 	val avg: Double,

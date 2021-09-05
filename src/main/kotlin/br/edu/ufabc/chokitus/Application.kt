@@ -15,13 +15,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Paths
-import jetbrains.letsPlot.GGBunch
-import jetbrains.letsPlot.geom.geomJitter
-import jetbrains.letsPlot.ggsize
-import jetbrains.letsPlot.letsPlot
-import jetbrains.letsPlot.scale.guideLegend
-import jetbrains.letsPlot.scale.scaleColorContinuous
-import jetbrains.letsPlot.stat.statSmooth
 import kotlin.io.path.bufferedWriter
 import kotlin.io.path.inputStream
 import kotlin.io.path.isDirectory
@@ -30,11 +23,6 @@ import kotlin.io.path.name
 import kotlin.math.log
 import kotlin.math.sqrt
 import kotlin.random.Random
-import krangl.DataCol
-import krangl.DataFrame
-import krangl.readCSV
-import krangl.toMap
-import org.apache.commons.csv.CSVFormat
 
 val testableClients =
 	mapOf(
@@ -46,7 +34,7 @@ val testableClients =
 
 fun main(vararg args: String) {
 	extractResults()
-//	runTests(args)
+	// 	runTests(args)
 }
 
 fun runTests(args: Array<out String>) {
@@ -150,54 +138,9 @@ fun runAll(
 		}
 }
 
-fun bla() {
-	fun Any.realDouble() = toString().replace(',', '.').toDouble()
-	fun DataCol.realDouble() = values().map { it!!.realDouble() }.toList()
-	fun DataFrame.toMapOfDouble(): Map<String, List<Double>> =
-		toMap().mapValues { it.value.map { it!!.realDouble() } }
-
-	DataFrame.readCSV(
-		"C:\\Users\\victo\\Documents\\TCC\\dev\\kotlin\\mq-base-api-kotlin\\untitled\\test_results\\rabbitmq-batch-1c-4p-1d-1000b\\45853465582891\\receiver_latency_fake.csv",
-		CSVFormat.newFormat(';').withHeader(),
-	).toMapOfDouble()
-		.let { df ->
-			val media = letsPlot(df) {
-				x = "Timestamp"
-				y = "Media"
-			} +
-					statSmooth(method = "loess") +
-					geomJitter() {
-						color = "Minimo"
-						size = "Maximo"
-					} +
-					geomJitter() {
-						y = "Quantidade"
-					} +
-					scaleColorContinuous("blue", "pink", guide = guideLegend(ncol = 2), name = "Minimo") +
-					ggsize(1000, 200)
-
-			val qntd = letsPlot(df) {
-				x = "Timestamp"
-				y = "Quantidade"
-			} +
-					statSmooth(method = "loess") +
-					geomJitter() {
-						color = "Minimo"
-						size = "Maximo"
-					} +
-					scaleColorContinuous("blue", "pink", guide = guideLegend(ncol = 2), name = "Minimo") +
-					ggsize(1000, 200)
-
-			GGBunch()
-				.addPlot(media, 0, 0)
-				.addPlot(qntd, 0, 200)
-				.show()
-		}
-}
-
 fun extractResults() {
 	val extract = "receiver_latency"
-	Paths.get("test_results/2").listDirectoryEntries()
+	Paths.get("test_results/3").listDirectoryEntries()
 		.filter { it.isDirectory() }
 		.flatMap {
 			it.listDirectoryEntries()
@@ -210,8 +153,9 @@ fun extractResults() {
 		}
 		.let { stream ->
 			Paths.get("test_results/$extract.csv").bufferedWriter().use { writer ->
+				writer.write("timestamp;normal_timestamp;client;producers;consumers;message_size;benchmark;destinations;max_latency;min_latency;avg_latency;latency_std;balance;quantity\n")
 				stream.forEach {
-					writer.write(it)
+					writer.write(it.replace(",", "."))
 					writer.newLine()
 				}
 			}

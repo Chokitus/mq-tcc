@@ -19,7 +19,7 @@ case $1 in
     exit
     ;;
   run)
-    docker run -it --network mq-tests-network mq-tests "$@" && \
+    docker run -it --network mq-tests-network --cpuset-cpus="2,3,4,5" --cpus="4.0" --memory=4000M mq-tests "$@" && \
     echo "Copying test_results to host machine" && \
     docker ps -alq | xargs -I % sh -c 'docker cp %:/test_results .' && \
     echo "Copy successful, deleting docker container" && \
@@ -38,7 +38,7 @@ case $1 in
       bash -c "echo $checksum > lastchecksum.sha1"
       dockerBuild
     fi
-    docker run -it --network mq-tests-network mq-tests "$@" && \
+    docker run -it --network mq-tests-network --cpuset-cpus="2,3,4,5" --memory=4000M mq-tests "$@" && \
     echo "Copying test_results to host machine" && \
     docker ps -alq | xargs -I % sh -c 'docker cp %:/test_results .' && \
     echo "Copy successful, deleting docker container" && \

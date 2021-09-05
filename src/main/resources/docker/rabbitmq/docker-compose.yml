@@ -14,6 +14,15 @@ services:
       - '15672:15672'
     volumes:
       - 'rabbitmq_data:/bitnami'
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
 
 volumes:
   rabbitmq_data:

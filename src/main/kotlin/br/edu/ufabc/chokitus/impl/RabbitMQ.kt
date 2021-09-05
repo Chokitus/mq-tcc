@@ -28,6 +28,8 @@ import kotlin.reflect.KClass
 
 object RabbitMQ : BenchmarkDefiner {
 
+	private const val limit = 1 * 1000 * 1000L
+
 	data class RabbitMQProperties(
 		val username: String,
 		val password: String,
@@ -62,7 +64,7 @@ object RabbitMQ : BenchmarkDefiner {
 		var initialized: Boolean = false
 
 		private val receiver = connection.createChannel().apply {
-			basicQos(arguments.batchSize, false)
+			basicQos(arguments.batchSize, true)
 		}
 
 		private val ackFunction: (Envelope) -> Unit =
@@ -89,7 +91,8 @@ object RabbitMQ : BenchmarkDefiner {
 
 			val messages = mutableListOf<RabbitMQMessage>()
 
-			while (messages.size < arguments.batchSize) {
+			val start = System.nanoTime()
+			while (messages.size < arguments.batchSize || System.nanoTime() - start >= limit) {
 				val msg = internalQueue.poll() ?: break
 				messages.add(msg)
 			}
@@ -167,7 +170,7 @@ object RabbitMQ : BenchmarkDefiner {
 			connection.createChannel()
 				// We must enable confirms as to not "cheat" on producer speed, otherwise all publishes
 				// happen asynchronously
-				.also { it.confirmSelect() }
+				.apply { confirmSelect() }
 
 		override fun produce(destination: String, body: ByteArray, properties: RabbitMQProperties?) {
 			producer.basicPublish("", destination, MessageProperties.PERSISTENT_TEXT_PLAIN, body)
