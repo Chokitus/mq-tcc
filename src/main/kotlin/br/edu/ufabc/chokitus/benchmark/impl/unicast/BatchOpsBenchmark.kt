@@ -29,13 +29,14 @@ class BatchOpsBenchmark(
 	messageCount = messageCount,
 ) {
 
+	companion object {
+		private const val PRODUCER_WAIT_TIME = 10000L
+		private const val printCount = 10000
+	}
+
 	private lateinit var testExecutor: ExecutorService
 
 	private lateinit var defaultMessage: String
-
-	private val activeProducers = AtomicInteger(0)
-
-	private val printCount = 2000
 
 	override fun doBenchmarkImpl(
 		configuration: TestConfiguration,
@@ -44,16 +45,16 @@ class BatchOpsBenchmark(
 		testStartTime = time()
 		defaultMessage = RandomStringUtils.randomAlphanumeric(messageSize)
 
-		val receiver: List<CompletableFuture<Pair<List<TimedInterval>, List<TimedInterval>>>> =
-			(0 until configuration.receiverCount).map {
+		val producers: List<CompletableFuture<List<TimedInterval>>> =
+			(0 until configuration.producerCount).map { id ->
 				supplyAsync(
 					{
-						log.info("Creating receiver $it out of ${configuration.receiverCount}...")
-						val receiverConfiguration = configuration.receiverConfigurations[it]
-						doReceiver(
-							receiver = clientFactory.createReceiver(receiverConfiguration),
-							receiverConfiguration = receiverConfiguration,
-							receiverId = it
+						log.info("Creating producer $id out of ${configuration.producerCount}...")
+						val producerConfiguration = configuration.producerConfigurations[id]
+						doProducer(
+							producer = clientFactory.createProducer(producerConfiguration),
+							producerConfiguration = producerConfiguration,
+							producerId = id
 						)
 					},
 					testExecutor
@@ -62,16 +63,16 @@ class BatchOpsBenchmark(
 
 		Thread.sleep(1000)
 
-		val producers: List<CompletableFuture<List<TimedInterval>>> =
-			(0 until configuration.producerCount).map {
+		val receiver: List<CompletableFuture<Pair<List<TimedInterval>, List<TimedInterval>>>> =
+			(0 until configuration.receiverCount).map { id ->
 				supplyAsync(
 					{
-						log.info("Creating producer $it out of ${configuration.producerCount}...")
-						val producerConfiguration = configuration.producerConfigurations[it]
-						doProducer(
-							producer = clientFactory.createProducer(producerConfiguration),
-							producerConfiguration = producerConfiguration,
-							producerId = it
+						log.info("Creating receiver $id out of ${configuration.receiverCount}...")
+						val receiverConfiguration = configuration.receiverConfigurations[id]
+						doReceiver(
+							receiver = clientFactory.createReceiver(receiverConfiguration),
+							receiverConfiguration = receiverConfiguration,
+							receiverId = id
 						)
 					},
 					testExecutor
@@ -95,6 +96,7 @@ class BatchOpsBenchmark(
 
 			log.info("Setting active producers to $producerCount...")
 			activeProducers.set(producerCount)
+			inactiveReceivers.set(receiverCount)
 
 			log.info("Creating ${destinationConfigurations.size} destinations...")
 			destinationConfigurations
@@ -124,7 +126,7 @@ class BatchOpsBenchmark(
 		val intervalWithTimestamp = ArrayList<TimedInterval>()
 
 		fun observe(receivedTime: Long, sentTime: Long, requestTime: Long) {
-			val timestamp = timestamp(receivedTime)
+			val timestamp = timestamp(receivedTime) - 2 // Due to 2 dropped by waiting
 			val latency = receivedTime - sentTime
 			val receiveInterval = receivedTime - requestTime
 			latenciesWithTimestamp.add(timestamp.timingFor(latency, receiverId))
@@ -135,6 +137,7 @@ class BatchOpsBenchmark(
 		receiver.use {
 			receiver.start()
 			log.info("Receiver $receiverId: Receiver started successfully! Will now proceed to test...")
+			activateReceiver()
 			var receivedAny = false
 			while (activeProducers.get() > 0 || receivedAny) {
 				val requestTime = time()
@@ -163,7 +166,7 @@ class BatchOpsBenchmark(
 	): ArrayList<TimedInterval> {
 		val requestIntervalsWithTimestamp = ArrayList<TimedInterval>()
 		fun observe(requestTime: Long, producedTime: Long) {
-			val timestamp = timestamp(requestTime)
+			val timestamp = timestamp(requestTime) - 2
 			val interval = producedTime - requestTime
 			requestIntervalsWithTimestamp.add(timestamp.timingFor(interval, producerId))
 		}
@@ -172,6 +175,9 @@ class BatchOpsBenchmark(
 		producer.use {
 			producer.start()
 			log.info("$producerId: Producer started successfully! Will now proceed to test...")
+
+			awaitForReceivers()
+			Thread.sleep(PRODUCER_WAIT_TIME)
 			(1..messageCount).chunked(arguments.batchSize) {
 				if (requestIntervalsWithTimestamp.size % (printCount / arguments.batchSize) == 0) {
 					log.info(
@@ -194,6 +200,17 @@ class BatchOpsBenchmark(
 		log.info("$producerId: Producer finished successfully!")
 
 		return requestIntervalsWithTimestamp
+	}
+
+	private val activeProducers = AtomicInteger(0)
+	private val inactiveReceivers = AtomicInteger(0)
+
+	private fun activateReceiver() =
+		inactiveReceivers.decrementAndGet()
+
+	private fun awaitForReceivers() {
+		while (inactiveReceivers.get() != 0) Thread.sleep(5)
+		println("Releasing from lock!")
 	}
 
 }

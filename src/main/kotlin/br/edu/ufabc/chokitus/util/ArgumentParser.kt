@@ -13,7 +13,8 @@ object ArgumentParser {
 		val messageCount: Int,
 		val benchmark: String,
 		val batchSize: Int,
-		val isAll: Boolean = false
+		val isAll: Boolean = false,
+		val isAllSizes: Boolean = false,
 	) {
 
 		companion object {
@@ -32,6 +33,22 @@ object ArgumentParser {
 					benchmark = "",
 					batchSize = 100,
 					isAll = true,
+				)
+
+			fun createAllSizes(
+				client: String,
+				messageCount: Int,
+			) =
+				ParseResult(
+					client = client,
+					consumers = 2,
+					producers = 2,
+					destinations = 1,
+					messageSize = 0,
+					messageCount = messageCount,
+					benchmark = "",
+					batchSize = 100,
+					isAllSizes = true
 				)
 
 		}
@@ -68,7 +85,7 @@ object ArgumentParser {
 		for (i in args.indices) {
 			val arg = args[i]
 			if (arg.startsWith("--")) {
-				val all = arg == "--all" || arg == "--a"
+				val all = arg in setOf("--all", "--a", "--all-sizes", "--as")
 				if (all) {
 					values[arg.substring(2)] = ""
 					continue
@@ -86,6 +103,13 @@ object ArgumentParser {
 				client = require(values, "client", "cli"),
 				messageCount = require(values, "count", "ct").toInt(),
 				messageSize = require(values, "size", "s").toInt()
+			)
+		}
+
+		if (values.containsKey("all-sizes") || values.containsKey("as")) {
+			return ParseResult.createAllSizes(
+				client = require(values, "client", "cli"),
+				messageCount = require(values, "count", "ct").toInt(),
 			)
 		}
 

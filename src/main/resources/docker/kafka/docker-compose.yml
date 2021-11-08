@@ -3,6 +3,15 @@ version: '3.9'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -11,10 +20,19 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:latest
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
     depends_on:
-      - zookeeper
+        - zookeeper
     ports:
-      - "29092:29092"
+        - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181

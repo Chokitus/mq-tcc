@@ -57,6 +57,7 @@ object Pulsar : BenchmarkDefiner {
 	 */
 	class PulsarReceiver(
 		properties: PulsarProperties,
+		private val batchSize: Int,
 		private val pulsarClient: PulsarClient,
 	) : AbstractReceiver<Consumer<ByteArray>, PulsarMessage, PulsarProperties>(properties) {
 
@@ -105,7 +106,7 @@ object Pulsar : BenchmarkDefiner {
 						.builder()
 						.apply {
 							maxNumBytes(-1)
-							maxNumMessages(10)
+							maxNumMessages(batchSize)
 							timeout(1000, MILLISECONDS)
 						}
 						.let {
@@ -192,6 +193,7 @@ object Pulsar : BenchmarkDefiner {
 		override fun createReceiverImpl(receiverConfiguration: ReceiverConfiguration?): PulsarReceiver =
 			PulsarReceiver(
 				properties,
+				arguments.batchSize,
 				client
 			)
 

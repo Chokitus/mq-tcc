@@ -36,7 +36,7 @@
       "queueName": "single-queue",
       "topicName": "single-queue",
       "additionalInfo": {
-        "subscriberCount": 1
+        "subscriberCount": 4
       }
     }
   ]

@@ -20,9 +20,6 @@ import kotlin.io.path.inputStream
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
-import kotlin.math.log
-import kotlin.math.sqrt
-import kotlin.random.Random
 
 val testableClients =
 	mapOf(
@@ -33,8 +30,11 @@ val testableClients =
 	)
 
 fun main(vararg args: String) {
-	extractResults()
-	// 	runTests(args)
+	if (args.contains("--extract")) {
+		extractResults()
+		return
+	}
+	runTests(args)
 }
 
 fun runTests(args: Array<out String>) {
@@ -46,11 +46,6 @@ fun runTests(args: Array<out String>) {
 	val producer = arguments.producers
 	val client = arguments.client
 	println("Parsed args are $arguments")
-
-	// 	val destination = 1
-	// 	val consumer = 1
-	// 	val producer = 1
-	// 	val client = "artemis"
 
 	val (clientConstructor, propertiesType) =
 		testableClients[client.uppercase()]
@@ -67,13 +62,16 @@ fun runTests(args: Array<out String>) {
 		return
 	}
 
+	if (arguments.isAllSizes) {
+		runAllSizes(clientConstructor, clientProperties, arguments)
+		return
+	}
+
 	val testConfiguration: TestConfiguration =
 		Paths.get("benchmark/test_new/${destination}d_${consumer}c_${producer}p.json")
 			.inputStream()
 			.let<InputStream, TestConfiguration>(jacksonObjectMapper()::readValue)
 			.also { println("Successfully parsed test properties as $it") }
-
-	// 			./start.sh br --client artemis --consumers 1 --producers 64 --destinations 1 --size 1000 --count 100000
 
 	if (arguments.benchmark.equals("batch", true)) {
 		BatchOpsBenchmark(
@@ -94,6 +92,50 @@ fun runTests(args: Array<out String>) {
 		)
 }
 
+fun runAllSizes(
+	clientConstructor: (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory,
+	clientProperties: ClientProperties,
+	arguments: ArgumentParser.ParseResult
+) {
+	val testConfiguration: TestConfiguration =
+		Paths.get("benchmark/test_new/1d_2c_2p.json")
+			.inputStream()
+			.let<InputStream, TestConfiguration>(jacksonObjectMapper()::readValue)
+			.also { println("Successfully parsed test properties as $it") }
+
+	val messageSizes = listOf(125, 250, 1000, 2000, 4000, 8000, 16000)
+	listOf("single", "batch")
+		.asSequence()
+		.flatMap { bench -> messageSizes.map { bench to it } }
+		.forEach { (benchmark, messageSize) ->
+			val isSingle = benchmark == "single"
+			val newArguments = arguments.copy(
+				benchmark = benchmark,
+				batchSize = 1.takeIf { isSingle } ?: arguments.batchSize,
+				messageSize = messageSize
+			)
+			if (isSingle) {
+				SingleOpsBenchmark(
+					arguments = newArguments,
+					messageSize = newArguments.messageSize,
+					messageCount = newArguments.messageCount,
+				).doBenchmark(
+					configuration = testConfiguration,
+					clientFactory = clientConstructor(clientProperties, newArguments)
+				)
+			} else {
+				BatchOpsBenchmark(
+					arguments = newArguments,
+					messageSize = newArguments.messageSize,
+					messageCount = newArguments.messageCount,
+				).doBenchmark(
+					configuration = testConfiguration,
+					clientFactory = clientConstructor(clientProperties, newArguments)
+				)
+			}
+		}
+}
+
 fun runAll(
 	clientConstructor: (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory,
 	clientProperties: ClientProperties,
@@ -101,14 +143,11 @@ fun runAll(
 ) {
 	val jacksonObjectMapper = jacksonObjectMapper()
 	Paths.get("benchmark/test_new")
-		.also { println(it.toAbsolutePath()) }
-		.let {
-			it.toFile().listFiles()!!
-		}
+		.let { it.toFile().listFiles()!! }
 		.filter { it.isFile }
 		.filter { !it.name.startsWith("benchmark_template") }
 		.map { it to jacksonObjectMapper.readValue<TestConfiguration>(it) }
-		.map { (file, configuration) ->
+		.forEach { (file, configuration) ->
 			println("Executing tests...")
 			val newArguments = arguments.copyParsing(file).copy(
 				benchmark = "single",
@@ -142,69 +181,21 @@ fun extractResults() {
 	val extract = "receiver_latency"
 	Paths.get("test_results/3").listDirectoryEntries()
 		.filter { it.isDirectory() }
-		.flatMap {
-			it.listDirectoryEntries()
-		}
+		.flatMap { it.listDirectoryEntries() }
 		.filter { it.isDirectory() }
-		.map { it.listDirectoryEntries().find { it.name.startsWith(extract) }!! }
+		.map { folder -> folder.listDirectoryEntries().find { it.name.startsWith(extract) }!! }
 		.stream()
-		.flatMap {
-			Files.lines(it).skip(1)
-		}
+		.flatMap { Files.lines(it).skip(1) }
 		.let { stream ->
 			Paths.get("test_results/$extract.csv").bufferedWriter().use { writer ->
-				writer.write("timestamp;normal_timestamp;client;producers;consumers;message_size;benchmark;destinations;max_latency;min_latency;avg_latency;latency_std;balance;quantity\n")
+				writer.write(
+					"timestamp;normal_timestamp;client;producers;consumers;message_size;benchmark;" +
+							"destinations;max_latency;min_latency;avg_latency;latency_std;balance;quantity\n"
+				)
 				stream.forEach {
 					writer.write(it.replace(",", "."))
 					writer.newLine()
 				}
 			}
 		}
-}
-
-fun fakeData() {
-	val clients = listOf("artemis", "rabbitmq", "pulsar", "kafka")
-	val type = listOf("batch", "single")
-	val producers = listOf(1, 4, 16, 64)
-	val consumers = listOf(1, 2, 4)
-	val destinations = listOf(1, 2, 4)
-	val ms = 1000
-	val messageCount = 1000000
-
-	val expectedAverage = 8.0
-
-	val writer = Paths.get("fake.csv").bufferedWriter()
-	writer.write("Timestamp;Cliente;Produtores;Consumidores;Tamanho da Mensagem;Tipo de Benchmark;Numero de Destinos;Latencia Maxima;Latencia Minima;Latencia Media;Desvio Padrao da Latencia;Fator de balanceamento;Quantidade Trafegada\n")
-	for (cli in clients) {
-		for (p in producers) {
-			for (c in consumers) {
-				for (d in destinations) {
-					for (t in type) {
-						val timestampAmount =
-							messageCount /
-									((messageCount / 500) *
-											(1 + log(p.toFloat(), 4.toFloat()) / 6) *
-											(1 + c / 6)) / 10
-
-						println(timestampAmount)
-
-						for (ts in 0..timestampAmount.toInt()) {
-							val avg = expectedAverage + (Random.nextInt(0, 20) / 10.0 - 1)
-							val maxAvg = avg * Random.nextInt(1, 4).toDouble()
-							val minAvg = avg / Random.nextInt(1, 4).toDouble()
-							val std = sqrt(maxAvg - minAvg)
-							val dif = Random.nextInt(0, 10 * (p - 1) + 1) / (100.0 * p)
-							val bs = 1 - dif
-							val msgs = Random.nextInt(1000, 2000)
-							val csv =
-								"$ts;$cli;$p;$c;$ms;$t;$d;$maxAvg;$minAvg;$avg;$std;$bs;$msgs"
-							writer.write(csv)
-							writer.newLine()
-						}
-					}
-				}
-			}
-		}
-	}
-	writer.close()
 }

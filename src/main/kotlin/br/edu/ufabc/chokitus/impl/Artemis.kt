@@ -103,8 +103,10 @@ object Artemis : BenchmarkDefiner {
 			getReceiver(destination)
 				.let { receiver ->
 					receiver
-						.receive(1000)
-						?.let { ArtemisMessage(it) { clientSession.commit() } }
+						.receive(50)
+						?.let {
+							ArtemisMessage(it) { it.individualAcknowledge() }
+						}
 				}
 
 		override fun getReceiver(destination: String, properties: ArtemisProperties?): ClientConsumer =
@@ -250,11 +252,10 @@ object Artemis : BenchmarkDefiner {
 				properties.password,
 				false,
 				false,
-				false,
+				!arguments.isBatch(),
 				false,
 				properties.ackBatchSize
 			)
-
 	}
 
 	override fun clientFactory(): (ClientProperties, ArgumentParser.ParseResult) -> ClientFactory =

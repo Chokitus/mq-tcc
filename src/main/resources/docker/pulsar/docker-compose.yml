@@ -16,6 +16,16 @@ services:
       /bin/bash -c
       "bin/apply-config-from-env.py conf/standalone.conf
       && bin/pulsar standalone --advertised-address standalone"
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
+
   dashboard:
     image: apachepulsar/pulsar-dashboard
     depends_on:
@@ -24,6 +34,15 @@ services:
       - "80:80"
     environment:
       - SERVICE_URL=http://standalone:8080
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
 
 networks:
   default:

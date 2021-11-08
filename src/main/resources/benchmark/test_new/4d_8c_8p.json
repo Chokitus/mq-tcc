@@ -64,28 +64,28 @@
       "queueName": "queue-01",
       "topicName": "queue-01",
       "additionalInfo": {
-        "subscriberCount": 1
+        "subscriberCount": 2
       }
     },
     {
       "queueName": "queue-02",
       "topicName": "queue-02",
       "additionalInfo": {
-        "subscriberCount": 1
+        "subscriberCount": 2
       }
     },
     {
       "queueName": "queue-03",
       "topicName": "queue-03",
       "additionalInfo": {
-        "subscriberCount": 1
+        "subscriberCount": 2
       }
     },
     {
       "queueName": "queue-04",
       "topicName": "queue-04",
       "additionalInfo": {
-        "subscriberCount": 1
+        "subscriberCount": 2
       }
     }
   ]

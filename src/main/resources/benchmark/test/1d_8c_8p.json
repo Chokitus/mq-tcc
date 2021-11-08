@@ -1,0 +1,71 @@
+{
+  "receiverConfigurations": [
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    },
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01"
+    }
+  ],
+  "producerConfigurations": [
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    },
+    {
+      "destinationName": "queue-01"
+    }
+  ],
+  "destinationConfigurations": [
+    {
+      "queueName": "queue-01",
+      "topicName": "queue-01",
+      "additionalInfo": {
+        "subscriberCount": 8
+      }
+    }
+  ]
+}

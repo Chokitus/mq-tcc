@@ -35,6 +35,15 @@ class SingleOpsBenchmark(
 	private lateinit var defaultMessage: String
 
 	private val activeProducers = AtomicInteger(0)
+	private val inactiveReceivers = AtomicInteger(0)
+
+	fun activateReceiver() =
+		inactiveReceivers.decrementAndGet()
+
+	fun awaitForReceivers() {
+		while (inactiveReceivers.get() != 0) Thread.sleep(5)
+		println("Releasing from lock!")
+	}
 
 	private val printCount = 2000
 
@@ -96,6 +105,7 @@ class SingleOpsBenchmark(
 
 			log.info("Setting active producers to $producerCount...")
 			activeProducers.set(producerCount)
+			inactiveReceivers.set(receiverCount)
 
 			log.info("Creating ${destinationConfigurations.size} destinations...")
 			destinationConfigurations
@@ -135,6 +145,8 @@ class SingleOpsBenchmark(
 		log.info("Receiver $receiverId: Starting receiver...")
 		receiver.use {
 			receiver.start()
+			activateReceiver()
+			awaitForReceivers()
 			log.info("Receiver $receiverId: Receiver started successfully! Will now proceed to test...")
 			var receivedAny = false
 			val receiverStartTime = time()
@@ -177,10 +189,12 @@ class SingleOpsBenchmark(
 		log.info("$producerId: Starting receiver...")
 		producer.use {
 			producer.start()
+			awaitForReceivers()
+			Thread.sleep(5000L)
 			log.info("$producerId: Producer started successfully! Will now proceed to test...")
 			val maxDuration = Duration.ofSeconds(120).toNanos()
 			val producerStartTime = time()
-			for(i in 1..messageCount) {
+			for (i in 1..messageCount) {
 				if (time() - producerStartTime >= maxDuration) {
 					break
 				}

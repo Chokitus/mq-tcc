@@ -11,8 +11,17 @@ services:
     environment:
       ARTEMIS_USERNAME: mq-test
       ARTEMIS_PASSWORD: mq-test
-      ARTEMIS_MIN_MEMORY: "1512M"
-      ARTEMIS_MAX_MEMORY: "2000M"
+      ARTEMIS_MIN_MEMORY: "2000M"
+      ARTEMIS_MAX_MEMORY: "4000M"
+    cpuset: "6,7"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4000M
+        reservations:
+          cpus: '2.0'
+          memory: 4000M
 
 networks:
   default:

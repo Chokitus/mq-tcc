@@ -1,0 +1,25 @@
+{
+  "receiverConfigurations": [
+    {
+      "queueName": "",
+      "topicName": "Nullable",
+      "batchSize": 1
+    }
+  ],
+  "producerConfiguration": [
+    {
+      "destinationName": "",
+      "batchSize": 1
+    }
+  ],
+  "destinationConfigurations": [
+    {
+      "queueName": "",
+      "topicName": "Nullable",
+      "additionalInfo": {
+      }
+    }
+  ],
+  "messageCount": 100,
+  "messageSize": 100
+}

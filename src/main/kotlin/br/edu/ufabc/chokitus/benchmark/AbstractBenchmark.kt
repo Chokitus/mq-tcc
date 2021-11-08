@@ -25,8 +25,6 @@ import org.slf4j.LoggerFactory
  * This class should define and execute all tests for this implementation.
  *
  * @constructor Create empty Abstract benchmark
- * @param T The benchmark result's extra data.
- * @param T The benchmark's configuration
  */
 abstract class AbstractBenchmark(
 	protected val arguments: ArgumentParser.ParseResult,
@@ -202,7 +200,7 @@ abstract class AbstractBenchmark(
 		values
 			.groupBy { it.timestamp }
 			.map { (timestamp, entries) ->
-				val intervals = entries.map { (it.interval.toDouble() / NANO_TO_MILLI).precision() }
+				val latencies = entries.map { (it.interval.toDouble() / NANO_TO_MILLI).precision() }
 
 				/**
 				 * How many each consumer processed
@@ -215,21 +213,21 @@ abstract class AbstractBenchmark(
 				 * Max value should be
 				 */
 				val maxValue = ((actors - 1.0) * 2.0 / actors).takeIf { it > 0 } ?: 1.0
-				val average = intervals.size.toDouble() / actors
+				val average = latencies.size.toDouble() / actors
 
 				val sumOfValues = count.values.sum()
 				val sumOfDifferences = count.mapValues { abs(average - it.value) }.values.sum()
 
-				val loadIndicator = sumOfDifferences / sumOfValues.toDouble()
+				val loadFactor = sumOfDifferences / sumOfValues.toDouble()
 
 				FinalResult(
 					timestamp = timestamp,
-					avg = intervals.average().precision(),
-					max = intervals.maxOrNull()!!,
-					min = intervals.minOrNull()!!,
-					std = intervals.std().precision(),
-					load = (1.0 - loadIndicator / maxValue),
-					count = intervals.size,
+					avg = latencies.average().precision(),
+					max = latencies.maxOrNull()!!,
+					min = latencies.minOrNull()!!,
+					std = latencies.std().precision(),
+					load = (1.0 - loadFactor / maxValue),
+					count = latencies.size,
 				)
 			}
 

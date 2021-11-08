@@ -3,16 +3,9 @@
     {
       "queueName": "single-queue",
       "topicName": "single-queue"
-    },
-    {
-      "queueName": "single-queue",
-      "topicName": "single-queue"
     }
   ],
   "producerConfigurations": [
-    {
-      "destinationName": "single-queue"
-    },
     {
       "destinationName": "single-queue"
     }
@@ -22,7 +15,7 @@
       "queueName": "single-queue",
       "topicName": "single-queue",
       "additionalInfo": {
-        "subscriberCount": 2
+        "subscriberCount": 1
       }
     }
   ]
